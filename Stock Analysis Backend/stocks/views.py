@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def _clean_float(val, default=0.0):
-    """Safely converts a value to float, ensuring NaN and Infinity become default."""
     if val is None:
         return default
     try:
@@ -29,7 +28,6 @@ def _clean_float(val, default=0.0):
 
 
 def _sanitize_val(val):
-    """Converts NaN/Inf to None so DRF's JSON serializer does not crash with ValueError."""
     if val is None:
         return None
     try:
@@ -82,11 +80,6 @@ def _assign_market_cap_segments(quotes):
 
 
 def _is_valid_stock_ticker(ticker, is_confirmed_symbol=False):
-    """
-    Validates that a ticker object returns realistic Indian stock data.
-    If is_confirmed_symbol=True, relaxes minimum row constraints to prevent false negatives
-    on valid Indian tickers (e.g. VBL / Varun Beverages) experiencing momentary thin windows.
-    """
     try:
         history = ticker.history(period='1y', auto_adjust=False)
         if history.empty or len(history) < (1 if is_confirmed_symbol else 2):
@@ -110,7 +103,6 @@ def _is_valid_stock_ticker(ticker, is_confirmed_symbol=False):
                 return True, info, history
             return False, info, history
 
-        # Clean NaN closes
         valid_closes = history['Close'].dropna()
         valid_closes = valid_closes[valid_closes > 0]
         if valid_closes.empty:
@@ -123,10 +115,6 @@ def _is_valid_stock_ticker(ticker, is_confirmed_symbol=False):
 
 
 def _sanity_check_indian_stock(candidate, info, clean_sym):
-    """
-    Ensures the resolved ticker belongs to an Indian exchange (NSE/BSE) and has not collided
-    with a foreign global ticker (e.g. US stock like VISL or NASDAQ/NYSE entity).
-    """
     if not candidate.endswith('.NS') and not candidate.endswith('.BO'):
         return False
 
@@ -136,7 +124,6 @@ def _sanity_check_indian_stock(candidate, info, clean_sym):
         return False
 
     exchange = (info.get('exchange') or '').upper()
-    # Acceptable Indian and Yahoo delayed quote identifiers
     valid_exchanges = {'NSI', 'NSE', 'BSE', 'BOM', 'BO', 'IN', 'INDIA', 'YHD', ''}
     if exchange and exchange not in valid_exchanges:
         logger.warning(f"Sanity check rejected {candidate}: foreign exchange '{exchange}'.")
@@ -146,20 +133,10 @@ def _sanity_check_indian_stock(candidate, info, clean_sym):
 
 
 def _resolve_symbol(symbol):
-    """
-    Canonical NSE/BSE Symbol Resolution:
-    1. Normalizes symbol and strips user suffixes (.NS, .BO, etc.)
-    2. Checks canonical NSE/BSE symbol master first.
-    3. Queries ONLY .NS (NSE) and/or .BO (BSE) against yfinance.
-    4. NEVER queries unsuffixed raw ticker (eliminates cross-market collision bug).
-    5. Retries on temporary failures with backoff (eliminates VBL false negative bug).
-    6. Validates currency (INR) and exchange (NSE/BSE).
-    """
     clean_sym = symbol_master.clean_symbol(symbol)
     if not clean_sym:
         return None, None, None, None
 
-    # Handle index symbols like ^NSEI or ^NSEBANK
     if clean_sym.startswith('^'):
         ticker = yf.Ticker(clean_sym)
         valid, info, history = _is_valid_stock_ticker(ticker, is_confirmed_symbol=True)
@@ -167,7 +144,6 @@ def _resolve_symbol(symbol):
             return clean_sym, info, history, 'NSE'
         return None, None, None, None
 
-    # Lookup in canonical Indian symbol master
     master_rec = symbol_master.lookup(clean_sym)
     is_confirmed = master_rec is not None
 
@@ -212,10 +188,6 @@ def _resolve_symbol(symbol):
 
 @api_view(['GET'])
 def search_stocks(request):
-    """
-    Autocomplete typeahead endpoint matching symbols and company names in the canonical master list.
-    Query param: `q` (e.g. /api/stocks/search/?q=VARUN or /api/stocks/search/?q=VBL)
-    """
     query = request.GET.get('q', '').strip()
     if not query:
         return Response({'results': []})
@@ -341,7 +313,6 @@ def top_movers(request):
 
 
 def _is_history_stale(stock):
-    """Checks if the stock's recorded history is older than the last 1-2 market trading sessions."""
     if not stock:
         return True
     latest = StockHistory.objects.filter(stock=stock).order_by('-date').first()
@@ -350,13 +321,11 @@ def _is_history_stale(stock):
     import datetime
     today = datetime.date.today()
     delta = (today - latest.date).days
-    # On weekends or Mondays, max allowed lag from Friday is 4 days; on regular weekdays 2 days.
     max_lag = 4 if today.weekday() in (0, 5, 6) else 2
     return delta > max_lag
 
 
 def _sync_stock_live_data(clean_sym):
-    """Fetches latest 1y history from yfinance and updates Stock & StockHistory to the last trading day."""
     resolved_symbol, info, hist, exchange_used = _resolve_symbol(clean_sym)
     if not resolved_symbol:
         return None
@@ -402,11 +371,6 @@ def _sync_stock_live_data(clean_sym):
 
 
 def _get_or_sync_stock(symbol, force_refresh=False):
-    """
-    Finds the matching Stock record in the database.
-    If the stock record is missing, has 0 history, or history is stale (older than last trading day),
-    or force_refresh=True, fetches and updates it with fresh data up to the latest trading day.
-    """
     clean_sym = symbol_master.clean_symbol(symbol)
     if clean_sym.startswith('^'):
         candidates = [clean_sym]
@@ -415,18 +379,15 @@ def _get_or_sync_stock(symbol, force_refresh=False):
 
     stock = None
     if not force_refresh:
-        # 1. Look for existing stock that has fresh history up to last trading day
         for cand in candidates:
             s = Stock.objects.filter(symbol__iexact=cand).first()
             if s and StockHistory.objects.filter(stock=s).exists() and not _is_history_stale(s):
                 stock = s
                 break
 
-    # 2. If no fresh stock found or force_refresh is requested, fetch live data
     if not stock:
         stock = _sync_stock_live_data(clean_sym)
 
-    # 3. Fallback to any existing record if live fetch failed
     if not stock:
         for cand in candidates:
             s = Stock.objects.filter(symbol__iexact=cand).first()
@@ -441,7 +402,6 @@ def _get_or_sync_stock(symbol, force_refresh=False):
 def fetch_stock_data(request, symbol):
     normalized_symbol = _normalize_symbol(symbol)
     try:
-        # fetch_stock_data always force refreshes live data up to latest trading day
         stock = _get_or_sync_stock(normalized_symbol, force_refresh=True)
         if not stock:
             return Response({
@@ -472,7 +432,6 @@ def get_stock(request, symbol):
             return Response({'error': f"Stock symbol '{normalized_symbol}' is not listed on Indian exchanges (NSE/BSE)."}, status=404)
 
         if period == '1d':
-            # Dynamic intraday 5m/15m fetch
             ticker = yf.Ticker(stock.symbol)
             intraday = ticker.history(period='1d', interval=interval or '5m')
             if not intraday.empty:
@@ -556,7 +515,6 @@ def analyze_stock(request, symbol):
             macd=_sanitize_val(result['macd']),
         )
 
-        # Compute Prev Day High/Low and 1W / 1M / 3M (Quarter) Highs & Lows from history
         prev_day_high = None
         prev_day_low = None
         week_high = None
@@ -645,7 +603,6 @@ def analyze_stock(request, symbol):
             'quarter_low': _sanitize_val(quarter_low),
         }
 
-        # Sanitize prediction numbers
         if prediction:
             prediction['slope'] = _clean_float(prediction.get('slope'))
             prediction['r_squared'] = _clean_float(prediction.get('r_squared'))
@@ -672,9 +629,6 @@ def analyze_stock(request, symbol):
 
 @api_view(['GET'])
 def fii_dii_activity_view(request):
-    """
-    Returns day-wise FII and DII net institutional inflow/outflow data in ₹ Crores.
-    """
     try:
         days = int(request.GET.get('days', 30))
         from .fii_dii import get_fii_dii_activity

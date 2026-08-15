@@ -16,7 +16,6 @@ function StockChart({
     initialToggles = {},
     compact = false,
 }) {
-    // 1. Data Normalization
     const rawHistory = useMemo(() => {
         if (!data) return [];
         if (Array.isArray(data)) return data;
@@ -37,7 +36,6 @@ function StockChart({
 
     const currencyPrefix = isIndex ? '' : '₹';
 
-    // 2. Time Range State
     const [selectedRange, setSelectedRange] = useState(propRange || '1M');
     useEffect(() => {
         if (propRange) setSelectedRange(propRange);
@@ -45,11 +43,10 @@ function StockChart({
 
     const handleRangeSelect = (r) => {
         setSelectedRange(r);
-        setZoomWindow([0, 1]); // Reset zoom on range change
+        setZoomWindow([0, 1]);
         if (onRangeChange) onRangeChange(r);
     };
 
-    // Slice dataset for the selected time range
     const rangeData = useMemo(() => {
         if (!rawHistory.length) return [];
         const cfg = TIME_RANGES.find(t => t.value === selectedRange) || TIME_RANGES[2];
@@ -57,16 +54,14 @@ function StockChart({
         return rawHistory.slice(-cfg.points);
     }, [rawHistory, selectedRange]);
 
-    // 3. Zoom & Pan State (fractional 0.0 to 1.0 of rangeData)
     const [zoomWindow, setZoomWindow] = useState([0, 1]);
-    const [chartMode, setChartMode] = useState('line'); // 'line' | 'candlestick'
+    const [chartMode, setChartMode] = useState('line');
     const [hoveredIndex, setHoveredIndex] = useState(null);
-    const [brushDrag, setBrushDrag] = useState(null); // { startX, currentX }
-    const [panDrag, setPanDrag] = useState(null); // { startX, initialWindow }
+    const [brushDrag, setBrushDrag] = useState(null);
+    const [panDrag, setPanDrag] = useState(null);
 
     const svgRef = useRef(null);
 
-    // Active visible data slice
     const visibleData = useMemo(() => {
         if (!rangeData.length) return [];
         const total = rangeData.length;
@@ -78,7 +73,6 @@ function StockChart({
     const isZoomed = zoomWindow[0] > 0.01 || zoomWindow[1] < 0.99;
     const isAtCurrentEnd = zoomWindow[1] >= 0.98;
 
-    // Combine with prediction if visible window includes current date
     const combinedData = useMemo(() => {
         if (!isAtCurrentEnd || !rawPrediction.length) return visibleData;
         const preds = rawPrediction.map(p => ({
@@ -88,7 +82,6 @@ function StockChart({
         return [...visibleData, ...preds];
     }, [visibleData, rawPrediction, isAtCurrentEnd]);
 
-    // 4. Overlays & Technical Indicators State
     const [toggles, setToggles] = useState({
         ma20: true,
         ma50: false,
@@ -102,7 +95,6 @@ function StockChart({
         setToggles(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    // Calculate moving averages & Bollinger Bands over visible data
     const technicals = useMemo(() => {
         if (!visibleData.length) {
             return { ma20: [], ma50: [], bbUpper: [], bbLower: [], support: null, resistance: null };
@@ -115,7 +107,6 @@ function StockChart({
         const bbLower = [];
 
         for (let i = 0; i < closes.length; i++) {
-            // MA20 & Bollinger
             const win20 = Math.min(20, i + 1);
             const slice20 = closes.slice(Math.max(0, i - 19), i + 1);
             const avg20 = slice20.reduce((a, b) => a + b, 0) / win20;
@@ -126,7 +117,6 @@ function StockChart({
             bbUpper.push(avg20 + 2 * stdDev);
             bbLower.push(avg20 - 2 * stdDev);
 
-            // MA50
             const win50 = Math.min(50, i + 1);
             const slice50 = closes.slice(Math.max(0, i - 49), i + 1);
             ma50.push(slice50.reduce((a, b) => a + b, 0) / win50);
@@ -140,7 +130,6 @@ function StockChart({
         return { ma20, ma50, bbUpper, bbLower, support, resistance };
     }, [visibleData]);
 
-    // 5. Chart Dimensions & Layout
     const width = 840;
     const height = toggles.volume ? 490 : 410;
     const padding = { top: 20, right: 30, bottom: 45, left: 75 };
@@ -149,7 +138,6 @@ function StockChart({
     const priceHeight = height - padding.top - padding.bottom - volumeHeight - navHeight - (toggles.volume ? 14 : 0);
     const innerWidth = width - padding.left - padding.right;
 
-    // Price scaling over visible window
     const priceLows = visibleData.map(item => Number(item.low != null ? item.low : item.close_price));
     const priceHighs = visibleData.map(item => Number(item.high != null ? item.high : item.close_price));
     const predPrices = (isAtCurrentEnd ? rawPrediction : []).map(p => Number(p.predicted_price)).filter(v => !isNaN(v) && v != null);
@@ -174,14 +162,12 @@ function StockChart({
         return priceHeight - ((price - paddedMin) / priceRange) * priceHeight;
     }, [priceHeight, paddedMin, priceRange]);
 
-    // Volume scaling
     const volumes = visibleData.map(item => Number(item.volume || 0));
     const maxVolume = Math.max(...volumes, 1);
     const yScaleVolume = useCallback((vol) => {
         return (vol / maxVolume) * (volumeHeight - 10);
     }, [maxVolume, volumeHeight]);
 
-    // Price Y-axis Ticks
     const yTicks = useMemo(() => {
         return [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
             const val = paddedMax - ratio * priceRange;
@@ -192,7 +178,6 @@ function StockChart({
         });
     }, [paddedMax, priceRange, yScalePrice]);
 
-    // 6. Active Point & Tooltip Metric Tracking
     const activeIndex = hoveredIndex !== null ? hoveredIndex : (visibleData.length > 0 ? visibleData.length - 1 : 0);
     const activePoint = combinedData[activeIndex] || {};
     const isPrediction = activePoint.predicted_price !== undefined && activePoint.close_price === undefined;
@@ -201,7 +186,6 @@ function StockChart({
         ? activePoint.close_price - prevPoint.close_price
         : null;
 
-    // 7. Interactive Pointer Handlers (Brush Zoom & Pan)
     const getSVGRelativeX = (e) => {
         if (!svgRef.current) return 0;
         const rect = svgRef.current.getBoundingClientRect();
@@ -216,10 +200,8 @@ function StockChart({
         const innerX = x - padding.left;
 
         if (e.shiftKey || (isZoomed && e.button === 1)) {
-            // Pan Mode
             setPanDrag({ startX: innerX, initialWindow: [...zoomWindow] });
         } else {
-            // Brush Selection Mode
             setBrushDrag({ startX: innerX, currentX: innerX });
         }
     };
@@ -229,7 +211,6 @@ function StockChart({
         const x = getSVGRelativeX(e);
         const innerX = x - padding.left;
 
-        // Update hover crosshair index
         const idx = Math.min(combinedData.length - 1, Math.max(0, Math.floor(innerX / step)));
         setHoveredIndex(idx);
 
@@ -258,7 +239,6 @@ function StockChart({
         if (brushDrag) {
             const dragDist = Math.abs(brushDrag.currentX - brushDrag.startX);
             if (dragDist > 15) {
-                // Apply brush zoom
                 const minX = Math.min(brushDrag.startX, brushDrag.currentX);
                 const maxX = Math.max(brushDrag.startX, brushDrag.currentX);
 
@@ -275,7 +255,6 @@ function StockChart({
         setPanDrag(null);
     };
 
-    // 8. Desktop Scroll-Wheel Zoom Handler
     const handleWheel = (e) => {
         e.preventDefault();
         if (!rangeData.length) return;
@@ -293,7 +272,6 @@ function StockChart({
         setZoomWindow([newStart, newEnd]);
     };
 
-    // Reset Zoom Handler
     const handleResetZoom = () => {
         setZoomWindow([0, 1]);
     };
@@ -304,9 +282,7 @@ function StockChart({
 
     return (
         <div className="axiomity-chart-container">
-            {/* Top Toolbar: Time Range Selector + Overlays + Candlestick/Line Toggle */}
             <div className={`chart-controls-bar ${compact ? 'compact-mode' : ''}`}>
-                {/* 1. Time Range Selector Tabs */}
                 <div className="chart-range-pills">
                     {TIME_RANGES.map((r) => (
                         <button
@@ -320,9 +296,7 @@ function StockChart({
                     ))}
                 </div>
 
-                {/* 2. Chart Type & Overlay Toggles */}
                 <div className="chart-toggles-group">
-                    {/* View Mode Toggle: Line vs Candlestick */}
                     <div className="mode-toggle-group">
                         <button
                             type="button"
@@ -344,7 +318,6 @@ function StockChart({
 
                     {!compact && (
                         <>
-                            {/* Indicator Toggles */}
                             <button
                                 type="button"
                                 className={`chart-pill-btn ${toggles.ma20 ? 'active' : ''}`}
@@ -393,7 +366,6 @@ function StockChart({
                         </>
                     )}
 
-                    {/* Reset Zoom Button */}
                     {isZoomed && (
                         <button
                             type="button"
@@ -407,7 +379,6 @@ function StockChart({
                 </div>
             </div>
 
-            {/* Monospace OHLCV Tooltip HUD (Only show when hovering or in full mode) */}
             {(!compact || hoveredIndex !== null) && (
                 <div className="chart-hud-fintech">
                     <div className="hud-date-tag">
@@ -458,7 +429,6 @@ function StockChart({
                 </div>
             )}
 
-            {/* Interactive SVG Chart */}
             <div className="svg-chart-wrapper" onWheel={handleWheel}>
                 <svg
                     ref={svgRef}
@@ -489,11 +459,9 @@ function StockChart({
                         </clipPath>
                     </defs>
 
-                    {/* Chart Container Background Box */}
                     <rect x="0" y="0" width={width} height={height} rx="12" fill="var(--chart-bg, #ffffff)" stroke="var(--chart-border, #e2e8f0)" strokeWidth="1" />
 
                     <g transform={`translate(${padding.left},${padding.top})`}>
-                        {/* 1. Price Horizontal Gridlines & Y-Axis Labels */}
                         {yTicks.map((tick) => (
                             <g key={tick.value} className="grid-line-group">
                                 <line x1="0" x2={innerWidth} y1={tick.y} y2={tick.y} stroke="var(--chart-grid, #f1f5f9)" strokeDasharray="3 3" />
@@ -503,7 +471,6 @@ function StockChart({
                             </g>
                         ))}
 
-                        {/* 2. Support & Resistance Overlays */}
                         {toggles.srLevels && technicals.resistance != null && (
                             <g>
                                 <line
@@ -539,7 +506,6 @@ function StockChart({
                             </g>
                         )}
 
-                        {/* 3. Bollinger Bands Envelope */}
                         {toggles.bollinger && visibleData.length > 1 && technicals.bbUpper.length > 0 && (() => {
                             const upperPoints = technicals.bbUpper.map((val, idx) => `${idx * step + step / 2},${yScalePrice(val)}`).join(' L ');
                             const lowerPointsReverse = technicals.bbLower.map((val, idx) => `${idx * step + step / 2},${yScalePrice(val)}`).reverse().join(' L ');
@@ -568,7 +534,6 @@ function StockChart({
                             );
                         })()}
 
-                        {/* 4. Main Price Series: Line or Candlestick View */}
                         {chartMode === 'line' && visibleData.length > 0 && (() => {
                             const firstX = step / 2;
                             const lastX = (visibleData.length - 1) * step + step / 2;
@@ -594,7 +559,6 @@ function StockChart({
                             );
                         })()}
 
-                        {/* Candlestick Rendering Mode */}
                         {chartMode === 'candlestick' && visibleData.length > 0 && (
                             <g pointerEvents="none" clipPath="url(#price-pane-clip)">
                                 {visibleData.map((candle, idx) => {
@@ -618,7 +582,6 @@ function StockChart({
 
                                     return (
                                         <g key={`candle-${idx}`}>
-                                            {/* Candle Wick Line (High to Low) */}
                                             <line
                                                 x1={x}
                                                 x2={x}
@@ -627,7 +590,6 @@ function StockChart({
                                                 stroke={candleColor}
                                                 strokeWidth="1.4"
                                             />
-                                            {/* Candle Body Rect (Open to Close) */}
                                             <rect
                                                 x={x - candleWidth / 2}
                                                 y={rectY}
@@ -642,7 +604,6 @@ function StockChart({
                             </g>
                         )}
 
-                        {/* 5. Moving Averages Overlays */}
                         {toggles.ma20 && visibleData.length > 1 && technicals.ma20.length > 0 && (
                             <polyline
                                 points={technicals.ma20.map((val, idx) => `${idx * step + step / 2},${yScalePrice(val)}`).join(' ')}
@@ -666,7 +627,6 @@ function StockChart({
                             />
                         )}
 
-                        {/* 6. 14-Day Prediction Dotted Trajectory (only when visible window includes now) */}
                         {isAtCurrentEnd && rawPrediction.length > 0 && (() => {
                             const predPoints = [];
                             if (visibleData.length > 0) {
@@ -706,7 +666,6 @@ function StockChart({
                             );
                         })()}
 
-                        {/* 7. Volume Subchart Pane */}
                         {toggles.volume && (
                             <g transform={`translate(0, ${priceHeight + 14})`} className="volume-subchart-pane">
                                 <line x1="0" x2={innerWidth} y1="0" y2="0" stroke="#e2e8f0" strokeWidth="1" />
@@ -737,7 +696,6 @@ function StockChart({
                             </g>
                         )}
 
-                        {/* 8. Active Hover Crosshair Line & Point Dot */}
                         {hoveredIndex !== null && (
                             <g pointerEvents="none">
                                 <line
@@ -775,7 +733,6 @@ function StockChart({
                             );
                         })()}
 
-                        {/* 9. Interactive Drag-Zoom Selection Rectangle */}
                         {brushDrag && (
                             <g pointerEvents="none">
                                 <rect
@@ -792,7 +749,6 @@ function StockChart({
                             </g>
                         )}
 
-                        {/* 10. Date X-Axis Labels */}
                         <g transform={`translate(0, ${priceHeight + (toggles.volume ? volumeHeight + 14 : 0)})`}>
                             {combinedData.map((item, index) => {
                                 const labelInterval = Math.max(1, Math.floor(combinedData.length / 6));
@@ -816,7 +772,6 @@ function StockChart({
                             })}
                         </g>
 
-                        {/* 11. Bottom Range-Preview Sparkline Navigator Strip */}
                         {rangeData.length > 5 && (() => {
                             const navTop = priceHeight + (toggles.volume ? volumeHeight + 14 : 0) + 26;
                             const fullCloses = rangeData.map(c => Number(c.close_price || 0));
@@ -836,7 +791,6 @@ function StockChart({
 
                             return (
                                 <g className="range-navigator-group" transform={`translate(0, 0)`}>
-                                    {/* Navigator Strip Background */}
                                     <rect
                                         x={0}
                                         y={navTop}
@@ -846,7 +800,6 @@ function StockChart({
                                         stroke="var(--chart-nav-border, #e2e8f0)"
                                         rx="6"
                                     />
-                                    {/* Mini Sparkline Line */}
                                     <polyline
                                         points={sparklinePoints}
                                         fill="none"
@@ -854,7 +807,6 @@ function StockChart({
                                         strokeWidth="1.2"
                                         opacity="0.8"
                                     />
-                                    {/* Active Zoom Window Highlight Box */}
                                     <rect
                                         x={windowStartX}
                                         y={navTop}

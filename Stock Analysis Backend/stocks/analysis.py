@@ -4,7 +4,6 @@ import numpy as np
 
 
 def _safe_last(series, fallback=0.0):
-    """Safely returns the last non-NaN element of a pandas Series, or fallback."""
     if series is None or series.empty:
         return float(fallback)
     clean = series.dropna()
@@ -47,7 +46,6 @@ def calculate_moving_averages(prices):
     if prices.empty:
         return pd.Series([0.0]), pd.Series([0.0])
 
-    # Use min_periods=1 so shorter histories (e.g. 45 days) do not produce empty Series
     ma20 = prices.rolling(window=20, min_periods=1).mean()
     ma50 = prices.rolling(window=50, min_periods=1).mean()
     return ma20, ma50
@@ -125,11 +123,6 @@ def generate_recommendation(prices):
 
 
 def generate_prediction(prices, days_forward=14):
-    """Simple linear regression prediction over the provided price series.
-
-    Returns a dict with predicted points (next `days_forward` days), direction,
-    slope and r_squared. Uses a linear fit on the sequential index of prices.
-    """
     prices = pd.Series(prices, dtype='float64').dropna()
     if prices.empty or len(prices) < 3:
         return {
@@ -143,10 +136,8 @@ def generate_prediction(prices, days_forward=14):
     x = np.arange(len(y)).astype(float)
 
     try:
-        # Fit linear regression y = m*x + b
         m, b = np.polyfit(x, y, 1)
 
-        # Compute r-squared
         y_pred = m * x + b
         ss_res = np.sum((y - y_pred) ** 2)
         ss_tot = np.sum((y - np.mean(y)) ** 2) if len(y) > 1 else 0.0
@@ -168,7 +159,6 @@ def generate_prediction(prices, days_forward=14):
     except Exception:
         dt = pd.to_datetime(datetime.date.today())
 
-    # generate next calendar days
     for i in range(1, days_forward + 1):
         xi = last_index + i
         yi = float(m * xi + b)

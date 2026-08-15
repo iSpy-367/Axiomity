@@ -25,7 +25,7 @@ class StockHistory(models.Model):
 class Prediction(models.Model):
     stock = models.ForeignKey(Stock, on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
-    recommendation = models.CharField(max_length=10)  # Buy, Sell, Hold
+    recommendation = models.CharField(max_length=10)
     confidence = models.FloatField()
     rsi = models.FloatField(null=True)
     macd = models.FloatField(null=True)

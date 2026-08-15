@@ -14,11 +14,9 @@ function Dashboard() {
     const [indexLoading, setIndexLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Live Clock & Last Refreshed State
     const [currentTime, setCurrentTime] = useState(new Date());
     const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
-    // Live 1-second clock interval
     useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
@@ -89,12 +87,10 @@ function Dashboard() {
         loadIndexData();
     }, []);
 
-    // Check Indian Market Hours (09:15 AM - 03:30 PM IST, Monday - Friday)
     const isMarketOpen = () => {
         const day = currentTime.getDay();
-        if (day === 0 || day === 6) return false; // Weekend
+        if (day === 0 || day === 6) return false;
 
-        // Convert to minutes since midnight
         const mins = currentTime.getHours() * 60 + currentTime.getMinutes();
         return mins >= (9 * 60 + 15) && mins <= (15 * 60 + 30);
     };
@@ -153,7 +149,6 @@ function Dashboard() {
             <Navbar />
             <div className="dashboard-page">
 
-                {/* Hero Header Card with Live Clock & Refresh Status */}
                 <section className="hero-card dashboard-hero-card">
                     <div className="hero-copy">
                         <p className="eyebrow">AXIOMITY • INTELLIGENT INVESTING</p>
@@ -161,7 +156,6 @@ function Dashboard() {
                         <p>Review live market movers, Nifty index trends, and manage your portfolio.</p>
                     </div>
 
-                    {/* Live Market Clock & Refresh Desk */}
                     <div className="dashboard-clock-widget">
                         <div className="clock-market-status-row">
                             <div className={`market-live-pill ${marketOpen ? 'open' : 'closed'}`}>
@@ -201,9 +195,7 @@ function Dashboard() {
                 {marketError && <div className="status error">{marketError}</div>}
                 {indexError && <div className="status error">{indexError}</div>}
 
-                {/* Dual Index Benchmark Charts Grid */}
                 <section className="index-graphs-grid">
-                    {/* Nifty 50 Card */}
                     <div className="index-card">
                         <div className="card-header index-card-header">
                             <div>
@@ -241,7 +233,6 @@ function Dashboard() {
                         )}
                     </div>
 
-                    {/* Nifty Bank Card */}
                     <div className="index-card">
                         <div className="card-header index-card-header">
                             <div>
@@ -280,7 +271,6 @@ function Dashboard() {
                     </div>
                 </section>
 
-                {/* Centered Cap Selector Pill Bar */}
                 <section className="top-movers-filter">
                     <div className="cap-selector">
                         {[
@@ -301,9 +291,7 @@ function Dashboard() {
                     </div>
                 </section>
 
-                {/* Dual Column Movers Grid */}
                 <section className="top-movers-grid">
-                    {/* Top Gainers */}
                     <div className="movers-card">
                         <div className="card-header">
                             <div>
@@ -348,7 +336,6 @@ function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Top Losers */}
                     <div className="movers-card">
                         <div className="card-header">
                             <div>

@@ -10,7 +10,6 @@ from .serializers import PortfolioSerializer
 
 
 def _refresh_portfolio_prices(portfolio_items):
-    # Only refresh stocks for ACTIVE positions
     stocks_to_update = list(set([
         item.stock for item in portfolio_items 
         if item.status == 'active' and item.stock and item.stock.symbol
@@ -21,7 +20,6 @@ def _refresh_portfolio_prices(portfolio_items):
     def update_stock(stock):
         try:
             sym = stock.symbol
-            # If stock symbol does not have exchange suffix, resolve it canonically
             if not sym.endswith('.NS') and not sym.endswith('.BO') and not sym.startswith('^'):
                 res = _resolve_symbol(sym)
                 if res and res[0]:

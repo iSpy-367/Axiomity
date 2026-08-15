@@ -31,7 +31,6 @@ function Analysis() {
     const [activeTab, setActiveTab] = useState('overview');
     const [glossaryOpen, setGlossaryOpen] = useState(false);
 
-    // Typeahead Autocomplete State
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -77,7 +76,6 @@ function Analysis() {
         handleSearch(item.symbol);
     };
 
-    // Debounced Autocomplete Fetch
     useEffect(() => {
         const q = (symbol || '').trim();
         if (q.length < 1) {
@@ -97,7 +95,6 @@ function Analysis() {
         return () => clearTimeout(timer);
     }, [symbol]);
 
-    // Click outside to close typeahead dropdown
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
@@ -144,7 +141,6 @@ function Analysis() {
         }
     }, [loadStockData, searchParams]);
 
-    // Financial Formatters
     const formatCurrency = (value) => {
         if (value == null || isNaN(value)) return <span className="data-na">N/A</span>;
         return `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -172,7 +168,6 @@ function Analysis() {
 
     const num = (v) => (v == null ? 0 : Number(v));
 
-    // Calculate Intraday Delta if history is available
     const history = stockData?.history || [];
     const latestCandle = history.length > 0 ? history[history.length - 1] : null;
     const prevCandle = history.length > 1 ? history[history.length - 2] : null;
@@ -187,12 +182,10 @@ function Analysis() {
         intradayPct = 0;
     }
 
-    // Defensive Check: Dividend Yield Outlier (>20%)
     const rawDivYield = analysis?.fundamentals?.dividend_yield;
     const divYieldPct = rawDivYield != null ? Number(rawDivYield) * (rawDivYield < 1 ? 100 : 1) : null;
     const isDividendOutlier = divYieldPct != null && divYieldPct > 20;
 
-    // Defensive Check: P/E Outlier (>150 or < 0)
     const rawPE = analysis?.fundamentals?.pe;
     const peNum = rawPE != null ? Number(rawPE) : null;
     const isPEOutlier = peNum != null && (peNum > 150 || peNum < 0);
@@ -201,7 +194,6 @@ function Analysis() {
         <div className="app-shell fintech-workspace">
             <Navbar />
             <div className="analysis-page-container">
-                {/* Top Terminal Search & Quick Ticker Bar */}
                 <section className="terminal-header-card">
                     <div className="terminal-search-row">
                         <div className="search-input-group-wrapper" ref={searchContainerRef}>
@@ -230,7 +222,6 @@ function Analysis() {
                                 </button>
                             </div>
 
-                            {/* Autocomplete Typeahead Dropdown Menu */}
                             {showSuggestions && suggestions.length > 0 && (
                                 <div className="typeahead-dropdown">
                                     <div className="dropdown-header">
@@ -276,7 +267,6 @@ function Analysis() {
                         </div>
                     </div>
 
-                    {/* Stock Price & Ticker Meta Pill Header */}
                     {analysis && (
                         <div className="stock-hero-strip">
                             <div className="stock-identity">
@@ -318,7 +308,6 @@ function Analysis() {
 
                 {analysis && (
                     <div className="analysis-content-shell">
-                        {/* 4 Tabs Bar */}
                         <div className="fintech-tabs-bar">
                             {tabs.map((tab) => (
                                 <button
@@ -332,21 +321,17 @@ function Analysis() {
                             ))}
                         </div>
 
-                        {/* TAB 1: OVERVIEW */}
                         {activeTab === 'overview' && (
                             <div className="tab-pane-grid overview-layout">
-                                {/* Left Column: Signal Scorecard + Range Metrics */}
                                 <div className="overview-left-col">
                                     <Recommendation data={analysis} />
 
-                                    {/* 52-Week Range & Volatility Box */}
                                     {analysis.fundamentals && (
                                         <div className="fintech-card range-volatility-card">
                                             <div className="card-mini-head">
                                                 <span className="fintech-eyebrow">MARKET RANGE & VOLATILITY</span>
                                             </div>
 
-                                            {/* 52W Range Slider */}
                                             {analysis.fundamentals.fifty_two_week_low != null && analysis.fundamentals.fifty_two_week_high != null && (() => {
                                                 const low = num(analysis.fundamentals.fifty_two_week_low);
                                                 const high = num(analysis.fundamentals.fifty_two_week_high);
@@ -388,7 +373,6 @@ function Analysis() {
                                                 );
                                             })()}
 
-                                            {/* Previous Session Range (Prev Day High & Low) */}
                                             <div className="prev-session-stats-row">
                                                 <div className="prev-stat-box">
                                                     <span className="risk-title">PREV DAY HIGH</span>
@@ -431,13 +415,11 @@ function Analysis() {
                                                 </div>
                                             </div>
 
-                                            {/* Periodic Range Monitor (1W / 1M / 3M Quarter Highs & Lows) */}
                                             <div className="period-highs-matrix">
                                                 <span className="risk-title" style={{ marginBottom: '6px', display: 'block' }}>
                                                     PERIODIC RANGE MONITOR (HIGHS & LOWS)
                                                 </span>
                                                 <div className="period-highs-grid">
-                                                    {/* 1-Week High */}
                                                     <div className="period-high-item">
                                                         <span className="period-label">1-WEEK HIGH</span>
                                                         <div className="period-val-row">
@@ -458,7 +440,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* 1-Month High */}
                                                     <div className="period-high-item">
                                                         <span className="period-label">1-MONTH HIGH</span>
                                                         <div className="period-val-row">
@@ -479,7 +460,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* 1-Quarter High (3M) */}
                                                     <div className="period-high-item">
                                                         <span className="period-label">1-QUARTER HIGH (3M)</span>
                                                         <div className="period-val-row">
@@ -500,7 +480,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* 1-Week Low */}
                                                     <div className="period-high-item">
                                                         <span className="period-label">1-WEEK LOW</span>
                                                         <div className="period-val-row">
@@ -521,7 +500,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* 1-Month Low */}
                                                     <div className="period-high-item">
                                                         <span className="period-label">1-MONTH LOW</span>
                                                         <div className="period-val-row">
@@ -542,7 +520,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* 1-Quarter Low (3M) */}
                                                     <div className="period-high-item">
                                                         <span className="period-label">1-QUARTER LOW (3M)</span>
                                                         <div className="period-val-row">
@@ -565,7 +542,6 @@ function Analysis() {
                                                 </div>
                                             </div>
 
-                                            {/* Beta & 50/200 DMA Matrix */}
                                             <div className="risk-metrics-grid" style={{ marginTop: '14px' }}>
                                                 <div className="risk-metric-box">
                                                     <span className="risk-title">BETA (VOLATILITY)</span>
@@ -605,7 +581,6 @@ function Analysis() {
                                     )}
                                 </div>
 
-                                {/* Right Column: Interactive Stock Chart */}
                                 <div className="overview-right-col">
                                     <div className="fintech-card chart-panel-card">
                                         <div className="chart-panel-header">
@@ -627,10 +602,8 @@ function Analysis() {
                             </div>
                         )}
 
-                        {/* TAB 2: TECHNICAL ANALYSIS */}
                         {activeTab === 'technical' && (
                             <div className="tab-pane-grid technical-layout">
-                                {/* Left Column: Technical Matrix & Parameters */}
                                 <div className="technical-left-col">
                                     <div className="fintech-card technical-matrix-card">
                                         <div className="card-mini-head">
@@ -708,7 +681,6 @@ function Analysis() {
                                         </div>
                                     </div>
 
-                                    {/* Collapsible Indicator Methodology Glossary */}
                                     <div className="fintech-card glossary-collapsible-card">
                                         <button
                                             type="button"
@@ -745,7 +717,6 @@ function Analysis() {
                                     </div>
                                 </div>
 
-                                {/* Right Column: Full Technical Chart with Overlays */}
                                 <div className="technical-right-col">
                                     <div className="fintech-card chart-panel-card">
                                         <div className="chart-panel-header">
@@ -767,10 +738,8 @@ function Analysis() {
                             </div>
                         )}
 
-                        {/* TAB 3: FUNDAMENTAL ANALYSIS */}
                         {activeTab === 'fundamental' && (
                             <div className="fundamental-quad-grid">
-                                {/* Card 1: Valuation Multiples */}
                                 <div className="fintech-card fund-card">
                                     <div className="card-mini-head">
                                         <span className="fintech-eyebrow">VALUATION MULTIPLES</span>
@@ -809,7 +778,6 @@ function Analysis() {
                                     </ul>
                                 </div>
 
-                                {/* Card 2: Profitability & Margins */}
                                 <div className="fintech-card fund-card">
                                     <div className="card-mini-head">
                                         <span className="fintech-eyebrow">PROFITABILITY & RETURNS</span>
@@ -844,7 +812,6 @@ function Analysis() {
                                     </ul>
                                 </div>
 
-                                {/* Card 3: Dividend & Yield */}
                                 <div className="fintech-card fund-card">
                                     <div className="card-mini-head">
                                         <span className="fintech-eyebrow">DIVIDEND & CASH FLOW</span>
@@ -882,7 +849,6 @@ function Analysis() {
                                     </ul>
                                 </div>
 
-                                {/* Card 4: Balance Sheet & Scale */}
                                 <div className="fintech-card fund-card">
                                     <div className="card-mini-head">
                                         <span className="fintech-eyebrow">FINANCIAL SCALE</span>
@@ -915,10 +881,8 @@ function Analysis() {
                             </div>
                         )}
 
-                        {/* TAB 4: PREDICTED DIRECTION (STATISTICAL FORECAST) */}
                         {activeTab === 'predicted' && (
                             <div className="tab-pane-grid predicted-layout">
-                                {/* Left Column: Model Statistical Specification */}
                                 <div className="predicted-left-col">
                                     <div className="fintech-card forecast-spec-card">
                                         <div className="card-mini-head">
@@ -929,14 +893,12 @@ function Analysis() {
                                         {analysis.prediction ? (() => {
                                             const slope = Number(analysis.prediction.slope || 0);
                                             const rSquared = Number(analysis.prediction.r_squared || 0);
-                                            // Derived directly from the same slope
                                             const isUp = slope >= 0;
                                             const fitLabel = rSquared >= 0.70 ? 'High Linear Fit' : rSquared >= 0.40 ? 'Moderate Fit' : 'Weak Fit (High Variance)';
                                             const fitClass = rSquared >= 0.70 ? 'fit-high' : rSquared >= 0.40 ? 'fit-mid' : 'fit-low';
 
                                             return (
                                                 <div className="forecast-metrics-container">
-                                                    {/* Primary Direction Pill */}
                                                     <div className="forecast-verdict-box">
                                                         <span className="verdict-sub">DERIVED 14-DAY DRIFT</span>
                                                         <div className={`forecast-big-badge ${isUp ? 'up' : 'down'}`}>
@@ -944,7 +906,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* Statistical Parameters Table */}
                                                     <div className="stat-param-list">
                                                         <div className="stat-row">
                                                             <span className="stat-label">Daily Delta (Slope Coefficient m)</span>
@@ -965,7 +926,6 @@ function Analysis() {
                                                         </div>
                                                     </div>
 
-                                                    {/* Honest Statistical Disclaimer Box */}
                                                     <div className="forecast-disclaimer-box">
                                                         <div className="disclaimer-title">ℹ️ Model Assumptions & Boundaries</div>
                                                         <p>
@@ -980,7 +940,6 @@ function Analysis() {
                                     </div>
                                 </div>
 
-                                {/* Right Column: 14-Day Projection SVG Chart */}
                                 <div className="predicted-right-col">
                                     <div className="fintech-card chart-panel-card">
                                         <div className="chart-panel-header">

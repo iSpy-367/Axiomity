@@ -9,10 +9,8 @@ function Recommendation({ data = {} }) {
     const fiftyDayMa = data.fundamentals?.fifty_day_ma != null ? Number(data.fundamentals.fifty_day_ma) : null;
     const twoHundredDayMa = data.fundamentals?.two_hundred_day_ma != null ? Number(data.fundamentals.two_hundred_day_ma) : null;
 
-    // Evaluate individual indicator verdicts
     const signals = [];
 
-    // 1. RSI(14)
     if (rsi != null) {
         if (rsi < 35) {
             signals.push({ name: 'RSI (14)', value: rsi.toFixed(2), stance: 'Bullish', detail: 'Oversold (<35)', score: 1 });
@@ -23,7 +21,6 @@ function Recommendation({ data = {} }) {
         }
     }
 
-    // 2. MACD (12, 26)
     if (macd != null) {
         if (macd > 0.5) {
             signals.push({ name: 'MACD (12,26)', value: (macd >= 0 ? '+' : '') + macd.toFixed(2), stance: 'Bullish', detail: 'Positive Momentum', score: 1 });
@@ -34,7 +31,6 @@ function Recommendation({ data = {} }) {
         }
     }
 
-    // 3. MA20 (Short-Term Trend)
     if (ma20 != null && currentPrice > 0) {
         const diff20 = ((currentPrice - ma20) / ma20) * 100;
         if (diff20 > 0.3) {
@@ -46,7 +42,6 @@ function Recommendation({ data = {} }) {
         }
     }
 
-    // 4. MA50 (Intermediate Trend)
     if (ma50 != null && currentPrice > 0) {
         const diff50 = ((currentPrice - ma50) / ma50) * 100;
         if (diff50 > 0.5) {
@@ -58,7 +53,6 @@ function Recommendation({ data = {} }) {
         }
     }
 
-    // 5. 50/200 DMA Cross (Long-Term Structural Trend)
     let dmaCross = null;
     if (fiftyDayMa != null && twoHundredDayMa != null) {
         const isGolden = fiftyDayMa >= twoHundredDayMa;
@@ -72,7 +66,6 @@ function Recommendation({ data = {} }) {
         });
     }
 
-    // Aggregate Agreement & Divergence Analysis
     const totalSignals = signals.length || 1;
     const bullCount = signals.filter(s => s.stance === 'Bullish').length;
     const bearCount = signals.filter(s => s.stance === 'Bearish').length;
@@ -96,8 +89,6 @@ function Recommendation({ data = {} }) {
         agreementPercentage = Math.round((Math.max(bullCount, bearCount, neutralCount) / totalSignals) * 100);
     }
 
-    // Detect Contradiction / Divergence
-    // e.g., MACD is Bullish but MA trend is Bearish / Death Cross or vice versa
     const macdSignal = signals.find(s => s.name.startsWith('MACD'));
     const maSignal = signals.find(s => s.name.startsWith('Price vs MA50'));
     const isDivergent = (macdSignal && maSignal && macdSignal.stance !== 'Neutral' && maSignal.stance !== 'Neutral' && macdSignal.stance !== maSignal.stance) ||
@@ -106,7 +97,6 @@ function Recommendation({ data = {} }) {
 
     return (
         <div className="fintech-card signal-scorecard-card">
-            {/* Header: Stance Badge + Derived Agreement Confidence */}
             <div className="scorecard-header">
                 <div>
                     <span className="fintech-eyebrow">COMPOSITE SIGNAL SCORECARD</span>
@@ -117,7 +107,6 @@ function Recommendation({ data = {} }) {
                 </div>
             </div>
 
-            {/* Dynamic Agreement Confidence Gauge */}
             <div className="confidence-meter-box">
                 <div className="meter-label-row">
                     <span className="meter-label">Indicator Agreement</span>
@@ -130,7 +119,6 @@ function Recommendation({ data = {} }) {
                 </div>
             </div>
 
-            {/* Divergence / Contradiction Alert Ribbon */}
             {isDivergent && (
                 <div className="divergence-warning-ribbon">
                     <div className="ribbon-icon">⚠️</div>
@@ -141,7 +129,6 @@ function Recommendation({ data = {} }) {
                 </div>
             )}
 
-            {/* Individual Indicator Mini-Verdicts */}
             <div className="scorecard-breakdown-list">
                 {signals.map((sig, idx) => (
                     <div key={idx} className="scorecard-row">

@@ -58,7 +58,6 @@ class PortfolioSerializer(serializers.ModelSerializer):
         if not normalized:
             return None
 
-        # 1. Try canonical resolution first
         try:
             res = _resolve_symbol(normalized)
             if res and res[0]:
@@ -77,7 +76,6 @@ class PortfolioSerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
-        # 2. Fallback to existing stock in DB
         stock = Stock.objects.filter(symbol__iexact=normalized).first()
         if not stock and '.' not in normalized:
             stock = Stock.objects.filter(symbol__iexact=f'{normalized}.NS').first()
@@ -96,7 +94,6 @@ class PortfolioSerializer(serializers.ModelSerializer):
         if stock is None:
             stock, _ = Stock.objects.get_or_create(symbol=symbol, defaults={'name': symbol})
 
-        # Check only ACTIVE positions for repeat purchase averaging
         existing = Portfolio.objects.filter(user=user, stock=stock, status='active').first()
         if existing is not None:
             total_quantity = existing.quantity + validated_data['quantity']

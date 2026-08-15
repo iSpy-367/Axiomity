@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_SYMBOL_MASTER = [
-    # Mega Caps & Nifty 50
     {"symbol": "RELIANCE", "name": "Reliance Industries Limited", "exchanges": ["NSE", "BSE"], "sector": "Energy & Conglomerate"},
     {"symbol": "TCS", "name": "Tata Consultancy Services Limited", "exchanges": ["NSE", "BSE"], "sector": "Information Technology"},
     {"symbol": "HDFCBANK", "name": "HDFC Bank Limited", "exchanges": ["NSE", "BSE"], "sector": "Banking & Financial Services"},
@@ -186,15 +185,12 @@ DEFAULT_SYMBOL_MASTER = [
 ]
 
 class SymbolMaster:
-    """Canonical repository of valid Indian NSE and BSE tickers with fast in-memory indexing."""
-
     def __init__(self):
-        self._symbols = {}      # normalized_symbol -> dict
-        self._all_items = []    # list of all records
+        self._symbols = {}
+        self._all_items = []
         self._load_master_data()
 
     def _load_master_data(self):
-        # 1. Load built-in canonical records
         for item in DEFAULT_SYMBOL_MASTER:
             sym = item["symbol"].strip().upper()
             record = {
@@ -209,7 +205,6 @@ class SymbolMaster:
             self._symbols[sym] = record
             self._all_items.append(record)
 
-        # 2. If a local CSV file exists (e.g. EQUITY_L.csv), enrich dataset
         csv_path = os.path.join(os.path.dirname(__file__), "data", "EQUITY_L.csv")
         if os.path.exists(csv_path):
             try:
@@ -235,14 +230,11 @@ class SymbolMaster:
         logger.info(f"SymbolMaster initialized with {len(self._symbols)} Indian equities.")
 
     def clean_symbol(self, raw_symbol: str) -> str:
-        """Strips whitespace, exchange suffixes (.NS, .BO, .NSE, .BSE, ^) and converts to uppercase."""
         if not raw_symbol:
             return ""
         s = str(raw_symbol).strip().upper()
-        # Remove caret index prefix if any
         if s.startswith("^"):
             return s
-        # Remove suffix
         for suffix in [".NS", ".BO", ".NSE", ".BSE", ".BOM", ".NSI"]:
             if s.endswith(suffix):
                 s = s[:-len(suffix)]
@@ -250,11 +242,11 @@ class SymbolMaster:
         return s.strip()
 
     ALIASES = {
-        "LTM": "LTIM",           # LTIMindtree Limited (LTI + Mindtree)
-        "LTIMINDTREE": "LTIM",   # LTIMindtree full name
-        "MINDTREE": "LTIM",      # Mindtree
-        "LTI": "LTIM",           # L&T Infotech
-        "INFOSYS": "INFY",       # Infosys shorthand
+        "LTM": "LTIM",
+        "LTIMINDTREE": "LTIM",
+        "MINDTREE": "LTIM",
+        "LTI": "LTIM",
+        "INFOSYS": "INFY",
         "RELIANCEIND": "RELIANCE",
         "TATAMOTOR": "TATAMOTORS",
         "BAJAJ": "BAJFINANCE",
@@ -263,28 +255,20 @@ class SymbolMaster:
     }
 
     def lookup(self, raw_symbol: str):
-        """
-        Looks up a symbol in the canonical master list.
-        Returns the confirmed symbol dictionary or None.
-        """
         clean = self.clean_symbol(raw_symbol)
         if not clean:
             return None
 
-        # Check aliases
         if clean in self.ALIASES:
             clean = self.ALIASES[clean]
 
-        # 1. Exact match on normalized symbol
         if clean in self._symbols:
             return self._symbols[clean]
 
-        # 2. Case-insensitive / whitespace match
         for sym, data in self._symbols.items():
             if sym.lower() == clean.lower():
                 return data
 
-        # 3. Fuzzy match fallback for slight typos (e.g. RELIANCEE -> RELIANCE)
         all_syms = list(self._symbols.keys())
         close_matches = difflib.get_close_matches(clean, all_syms, n=1, cutoff=0.85)
         if close_matches:
@@ -293,10 +277,6 @@ class SymbolMaster:
         return None
 
     def search(self, query: str, limit: int = 8):
-        """
-        Autocomplete search matching symbols and company names.
-        Returns ranked list of matching Indian equities.
-        """
         q = (query or "").strip().upper()
         if not q:
             return []
@@ -304,7 +284,6 @@ class SymbolMaster:
         clean_q = self.clean_symbol(q)
         results = []
 
-        # 1. Exact & Prefix Matches on Symbol
         exact_sym = []
         prefix_sym = []
         substring_sym = []
@@ -323,7 +302,6 @@ class SymbolMaster:
             elif clean_q in name or q in name:
                 name_matches.append(item)
 
-        # Merge in priority order without duplicates
         seen = set()
         for group in [exact_sym, prefix_sym, substring_sym, name_matches]:
             for r in group:
@@ -343,5 +321,4 @@ class SymbolMaster:
 
         return results
 
-# Singleton instance
 symbol_master = SymbolMaster()

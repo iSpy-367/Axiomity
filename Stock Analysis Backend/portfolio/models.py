@@ -2,9 +2,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-BUY_BROKERAGE_RATE = 0.0015   # 0.15% buying brokerage on buy turnover
-SELL_BROKERAGE_RATE = 0.0015  # 0.15% selling brokerage on LTP / exit turnover
-BROKERAGE_RATE = 0.003        # Total combined 0.30% rate
+BUY_BROKERAGE_RATE = 0.0015
+SELL_BROKERAGE_RATE = 0.0015
+BROKERAGE_RATE = 0.003
 
 STATUS_CHOICES = [
     ('active', 'Active'),

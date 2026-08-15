@@ -105,7 +105,6 @@ function Register() {
 
     return (
         <div className="auth-split-wrapper">
-            {/* Left Column: Branding & Product Context */}
             <div className="auth-split-branding">
                 <div className="auth-brand-header">
                     <img
@@ -132,7 +131,6 @@ function Register() {
                         Join modern investors using Axiomity to identify high-probability setups, uncover technical divergences, and track portfolio returns with institutional precision.
                     </p>
 
-                    {/* Decorative Live Signal Mockup */}
                     <div className="auth-mockup-card">
                         <div className="auth-mockup-head">
                             <div>
@@ -144,7 +142,6 @@ function Register() {
                             </div>
                         </div>
 
-                        {/* Mini Decorative SVG Chart Wave */}
                         <div className="auth-mockup-svg-wrap">
                             <svg viewBox="0 0 400 64" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
                                 <defs>
@@ -169,7 +166,6 @@ function Register() {
                         </div>
                     </div>
 
-                    {/* Feature Highlights */}
                     <div className="auth-features-list">
                         <div className="auth-feature-item">
                             <div className="auth-feature-icon">🛡️</div>
@@ -200,7 +196,6 @@ function Register() {
                 </div>
             </div>
 
-            {/* Right Column: Register Form Panel */}
             <div className="auth-split-form-panel">
                 <div className="auth-fintech-card">
                     <div className="auth-form-head">
@@ -219,7 +214,6 @@ function Register() {
                     )}
 
                     <form onSubmit={handleSubmit}>
-                        {/* Username */}
                         <div className="auth-field-group">
                             <label className="fintech-input-label" htmlFor="reg-username">
                                 Username
@@ -239,7 +233,6 @@ function Register() {
                             </div>
                         </div>
 
-                        {/* Email */}
                         <div className="auth-field-group">
                             <label className="fintech-input-label" htmlFor="reg-email">
                                 Email Address
@@ -259,7 +252,6 @@ function Register() {
                             </div>
                         </div>
 
-                        {/* Password with Strength Meter */}
                         <div className="auth-field-group">
                             <div className="auth-field-label-row">
                                 <label className="fintech-input-label" htmlFor="reg-password">
@@ -304,7 +296,6 @@ function Register() {
                                 </button>
                             </div>
 
-                            {/* Password Strength Meter Bars */}
                             {form.password && (
                                 <div className="password-strength-wrap">
                                     <div className="password-strength-bars">
@@ -317,7 +308,6 @@ function Register() {
                             )}
                         </div>
 
-                        {/* Confirm Password with Match Indicator */}
                         <div className="auth-field-group">
                             <div className="auth-field-label-row">
                                 <label className="fintech-input-label" htmlFor="reg-password-confirm">
@@ -357,7 +347,6 @@ function Register() {
                                 </button>
                             </div>
 
-                            {/* Inline Match Status */}
                             {form.password_confirm && (
                                 <div className={`confirm-match-pill ${isMatch ? 'match' : isMismatch ? 'mismatch' : ''}`}>
                                     {isMatch ? (
@@ -369,7 +358,6 @@ function Register() {
                             )}
                         </div>
 
-                        {/* Submit Button */}
                         <button
                             type="submit"
                             className="auth-submit-btn"

@@ -10,8 +10,8 @@ import {
     searchStocks
 } from '../services/api';
 
-const BUY_BROKERAGE_RATE = 0.0015;   // 0.15% buying brokerage rate on buy turnover
-const SELL_BROKERAGE_RATE = 0.0015;  // 0.15% selling brokerage rate on LTP / exit turnover
+const BUY_BROKERAGE_RATE = 0.0015;
+const SELL_BROKERAGE_RATE = 0.0015;
 
 const ALLOC_COLORS = [
     '#2563eb', '#10b981', '#f59e0b', '#8b5cf6',
@@ -54,9 +54,8 @@ function Portfolio() {
     const [buyDate, setBuyDate] = useState(getTodayDateStr());
     const [filterQuery, setFilterQuery] = useState('');
     const [expandedItemId, setExpandedItemId] = useState(null);
-    const [activeHoldingsTab, setActiveHoldingsTab] = useState('active'); // 'active' | 'exited'
+    const [activeHoldingsTab, setActiveHoldingsTab] = useState('active');
 
-    // Manual Edit State
     const [editingItemId, setEditingItemId] = useState(null);
     const [editForm, setEditForm] = useState({
         quantity: 1,
@@ -66,16 +65,13 @@ function Portfolio() {
         exit_price: ''
     });
 
-    // Typeahead state for Quick Entry
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const symbolInputRef = useRef(null);
 
-    // Split active vs exited positions
     const activePositions = portfolio.filter(item => item.status !== 'exited');
     const exitedPositions = portfolio.filter(item => item.status === 'exited');
 
-    // 1. Active Portfolio Calculations
     const totalInvested = activePositions.reduce((sum, item) => sum + (item.buy_price || 0) * item.quantity, 0);
     const totalCurrent = activePositions.reduce((sum, item) => sum + (item.current_price || 0) * item.quantity, 0);
     const totalActiveGrossPnl = totalCurrent - totalInvested;
@@ -86,7 +82,6 @@ function Portfolio() {
     const totalActiveNetPnl = totalActiveGrossPnl - totalActiveBrokerage;
     const totalActiveNetPnlPercent = totalInvested > 0 ? (totalActiveNetPnl / totalInvested) * 100 : 0;
 
-    // 2. Exited Positions Realized Calculations
     const totalExitedRealizedNetPnl = exitedPositions.reduce((sum, item) => {
         if (item.realized_net_pnl != null) return sum + Number(item.realized_net_pnl);
         if (item.net_pnl != null) return sum + Number(item.net_pnl);
@@ -97,11 +92,8 @@ function Portfolio() {
         return sum + (gross - brokerage);
     }, 0);
 
-
-    // 3. Absolute P&L = Sum(Exited Realized P&L) + Sum(Active Unrealized P&L)
     const absolutePnl = totalActiveNetPnl + totalExitedRealizedNetPnl;
 
-    // 4. Day's Profit / Loss
     const totalDayChange = activePositions.reduce((sum, item) => {
         const qty = item.quantity || 0;
         const price = item.current_price || 0;
@@ -114,7 +106,6 @@ function Portfolio() {
     const totalPrevCurrent = totalCurrent - totalDayChange;
     const totalDayChangePercent = totalPrevCurrent > 0 ? (totalDayChange / totalPrevCurrent) * 100 : 0;
 
-    // Filter positions based on activeHoldingsTab ('active' vs 'exited') and filterQuery
     const displayedPositions = (activeHoldingsTab === 'active' ? activePositions : exitedPositions).filter(item =>
         item.symbol.toLowerCase().includes(filterQuery.toLowerCase()) ||
         (item.display_name && item.display_name.toLowerCase().includes(filterQuery.toLowerCase()))
@@ -137,7 +128,6 @@ function Portfolio() {
         loadPortfolio();
     }, []);
 
-    // Debounced typeahead search for Quick Entry
     useEffect(() => {
         const q = scriptSymbol.trim();
         if (q.length < 2) {
@@ -238,7 +228,6 @@ function Portfolio() {
             <Navbar />
             <div className="portfolio-page">
 
-                {/* Hero Title Bar */}
                 <section className="hero-card portfolio-hero-card">
                     <div className="hero-copy">
                         <p className="eyebrow">PORTFOLIO MANAGEMENT • LIVE POSITIONS</p>
@@ -250,9 +239,7 @@ function Portfolio() {
                 {message && <div className="status success" style={{ marginBottom: '16px' }}>{message}</div>}
                 {error && <div className="status error" style={{ marginBottom: '16px' }}>{error}</div>}
 
-                {/* Portfolio Summary KPI Cards Grid */}
                 <section className="portfolio-stats-grid">
-                    {/* Invested Capital */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Invested Capital</span>
                         <div className="stat-card-value">{formatCurrency(totalInvested)}</div>
@@ -261,7 +248,6 @@ function Portfolio() {
                         </div>
                     </div>
 
-                    {/* Current Portfolio Value */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Current Value</span>
                         <div className="stat-card-value">{formatCurrency(totalCurrent)}</div>
@@ -272,7 +258,6 @@ function Portfolio() {
                         </div>
                     </div>
 
-                    {/* Active Net P&L (Unrealized) */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Active Net P&L</span>
                         <div className="stat-card-value" style={{ color: totalActiveNetPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
@@ -288,7 +273,6 @@ function Portfolio() {
                         </div>
                     </div>
 
-                    {/* Absolute P&L = Realized P&L + Active P&L */}
                     <div className="portfolio-stat-card highlight">
                         <span className="stat-card-label">Absolute P&L</span>
                         <div className="stat-card-value" style={{ color: absolutePnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
@@ -301,7 +285,6 @@ function Portfolio() {
                         </div>
                     </div>
 
-                    {/* Day's Profit / Loss */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Day's Profit / Loss</span>
                         <div className="stat-card-value" style={{ color: totalDayChange >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
@@ -316,10 +299,8 @@ function Portfolio() {
                     </div>
                 </section>
 
-                {/* Main Content Layout Grid */}
                 <div className="portfolio-layout-grid">
 
-                    {/* Left Column: Holdings Book */}
                     <div>
                         <div className="portfolio-holdings-card">
                             <div className="holdings-head-toolbar">
@@ -329,7 +310,6 @@ function Portfolio() {
                                         Holdings Book
                                     </h2>
 
-                                    {/* Active vs Exited Tabs */}
                                     <div className="holdings-tabs-bar">
                                         <button
                                             type="button"
@@ -416,7 +396,6 @@ function Portfolio() {
 
                                         return (
                                             <div key={item.id} className={`holding-card-item ${isExited ? 'exited-holding-item' : ''}`}>
-                                                {/* Summary Row */}
                                                 <div
                                                     className="holding-summary-head"
                                                     onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
@@ -458,11 +437,9 @@ function Portfolio() {
                                                     </div>
                                                 </div>
 
-                                                {/* Expanded Details & Actions Panel */}
                                                 {isExpanded && (
                                                     <div className="holding-expanded-actions">
                                                         {isEditingThisItem ? (
-                                                            /* Inline Edit Form */
                                                             <div className="inline-edit-panel" style={{ width: '100%', padding: '10px 0' }}>
                                                                 <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--primary-blue)', marginBottom: '10px' }}>
                                                                     Edit Position — {item.symbol}
@@ -624,7 +601,6 @@ function Portfolio() {
                             )}
                         </div>
 
-                        {/* Capital Allocation Visualizer Card */}
                         {activePositions.length > 0 && totalCurrent > 0 && (
                             <div className="portfolio-allocation-card" style={{ marginTop: '20px' }}>
                                 <span className="fintech-eyebrow">CAPITAL DIVERSIFICATION</span>
@@ -665,7 +641,6 @@ function Portfolio() {
                         )}
                     </div>
 
-                    {/* Right Column: Quick Position Entry Form */}
                     <div className="quick-entry-card">
                         <span className="fintech-eyebrow">ORDER DESK</span>
                         <h2 style={{ margin: '2px 0 16px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -673,7 +648,6 @@ function Portfolio() {
                         </h2>
 
                         <div style={{ display: 'grid', gap: '16px' }}>
-                            {/* Symbol with Autocomplete Dropdown */}
                             <div style={{ position: 'relative' }}>
                                 <label className="fintech-input-label">Script Symbol</label>
                                 <input
@@ -708,7 +682,6 @@ function Portfolio() {
                                 )}
                             </div>
 
-                            {/* Quantity and Buy Price Inputs */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px' }}>
                                 <div>
                                     <label className="fintech-input-label">Quantity</label>
@@ -735,7 +708,6 @@ function Portfolio() {
                                 </div>
                             </div>
 
-                            {/* Buy Date Input */}
                             <div>
                                 <label className="fintech-input-label">Buy Date</label>
                                 <input
@@ -747,7 +719,6 @@ function Portfolio() {
                                 />
                             </div>
 
-                            {/* Submit Button */}
                             <button
                                 type="button"
                                 className="btn-add-position"

@@ -42,7 +42,6 @@ function Login() {
 
     return (
         <div className="auth-split-wrapper">
-            {/* Left Column: Branding & Product Context */}
             <div className="auth-split-branding">
                 <div className="auth-brand-header">
                     <img
@@ -69,7 +68,6 @@ function Login() {
                         Analyze Indian equities with composite technical consensus, automated divergence alerts, interactive zoomable price action, and live portfolio tracking.
                     </p>
 
-                    {/* Decorative Live Signal Mockup */}
                     <div className="auth-mockup-card">
                         <div className="auth-mockup-head">
                             <div>
@@ -81,7 +79,6 @@ function Login() {
                             </div>
                         </div>
 
-                        {/* Mini Decorative SVG Chart Wave */}
                         <div className="auth-mockup-svg-wrap">
                             <svg viewBox="0 0 400 64" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
                                 <defs>
@@ -106,7 +103,6 @@ function Login() {
                         </div>
                     </div>
 
-                    {/* Feature Highlights */}
                     <div className="auth-features-list">
                         <div className="auth-feature-item">
                             <div className="auth-feature-icon">⚡</div>
@@ -137,7 +133,6 @@ function Login() {
                 </div>
             </div>
 
-            {/* Right Column: Sign In Form Panel */}
             <div className="auth-split-form-panel">
                 <div className="auth-fintech-card">
                     <div className="auth-form-head">
@@ -156,7 +151,6 @@ function Login() {
                     )}
 
                     <form onSubmit={handleSubmit}>
-                        {/* Username Field */}
                         <div className="auth-field-group">
                             <label className="fintech-input-label" htmlFor="login-username">
                                 Username
@@ -175,7 +169,6 @@ function Login() {
                             </div>
                         </div>
 
-                        {/* Password Field with Visibility Toggle */}
                         <div className="auth-field-group">
                             <div className="auth-field-label-row">
                                 <label className="fintech-input-label" htmlFor="login-password">
@@ -215,7 +208,6 @@ function Login() {
                             </div>
                         </div>
 
-                        {/* Submit Button */}
                         <button
                             type="submit"
                             className="auth-submit-btn"

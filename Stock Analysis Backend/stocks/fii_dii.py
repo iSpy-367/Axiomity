@@ -6,10 +6,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# Default live NSE India endpoint
 FII_DII_ENDPOINT_URL = os.environ.get('FII_DII_ENDPOINT_URL', 'https://www.nseindia.com/api/fiidiiTradeReact')
 
-# In-memory cache with 15-minute TTL
 _CACHE = {
     'timestamp': 0,
     'data': None,
@@ -26,7 +24,6 @@ def _to_float(val, default=0.0):
 
 
 def _parse_nse_date(date_str):
-    """Parses '14-Aug-2026' or '2026-08-14' into standard ISO 'YYYY-MM-DD'."""
     if not date_str:
         return datetime.date.today().strftime('%Y-%m-%d')
     try:
@@ -41,10 +38,6 @@ def _parse_nse_date(date_str):
 
 
 def _fetch_from_nse():
-    """
-    Fetches official live institutional trading stats directly from NSE India
-    using an authenticated session with realistic browser headers.
-    """
     session = requests.Session()
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -53,13 +46,11 @@ def _fetch_from_nse():
         'Referer': 'https://www.nseindia.com/',
     })
 
-    # Step 1: Initialize cookies by requesting the homepage
     try:
         session.get('https://www.nseindia.com', timeout=6)
     except Exception as e:
         logger.warning(f"NSE homepage cookie init warning: {e}")
 
-    # Step 2: Query the FII/DII API endpoint
     try:
         resp = session.get(FII_DII_ENDPOINT_URL, timeout=6)
         if resp.status_code == 200:
@@ -104,10 +95,6 @@ def _fetch_from_nse():
 
 
 def _seed_db_history_if_needed():
-    """
-    Seeds initial historical trading sessions into FiiDiiActivity table
-    if the database table has fewer than 20 records.
-    """
     from .models import FiiDiiActivity
     if FiiDiiActivity.objects.count() >= 20:
         return
@@ -155,19 +142,13 @@ def _seed_db_history_if_needed():
 
 
 def get_fii_dii_activity(days=30):
-    """
-    Fetches live FII/DII activity from NSE India, stores & persists it into the SQLite database,
-    and returns historical time-series data.
-    """
     from .models import FiiDiiActivity
 
-    # 1. Seed initial base records if DB table is empty
     try:
         _seed_db_history_if_needed()
     except Exception as e:
         logger.warning(f"DB seeding warning: {e}")
 
-    # 2. Fetch live data from NSE India and persist in database
     now = time.time()
     if not (_CACHE['data'] and (now - _CACHE['timestamp'] < 900)):
         try:
@@ -189,7 +170,6 @@ def get_fii_dii_activity(days=30):
         except Exception as exc:
             logger.warning(f"Live fetch/persist error: {exc}")
 
-    # 3. Query all accumulated historical records from database
     records = []
     try:
         db_records = FiiDiiActivity.objects.all().order_by('-date')[:days]
@@ -207,7 +187,6 @@ def get_fii_dii_activity(days=30):
     except Exception as e:
         logger.error(f"Error querying FiiDiiActivity from DB: {e}")
 
-    # Cache output
     _CACHE['data'] = records
     _CACHE['timestamp'] = now
 

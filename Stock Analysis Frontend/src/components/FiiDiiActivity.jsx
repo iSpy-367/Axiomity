@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getFiiDiiActivity } from '../services/api';
 
 function formatCr(val) {
@@ -15,36 +15,35 @@ function FiiDiiActivity() {
     const [error, setError] = useState('');
     const [hoveredIndex, setHoveredIndex] = useState(null);
 
-    useEffect(() => {
-        let mounted = true;
+    const loadData = useCallback(() => {
         setLoading(true);
         setError('');
 
         getFiiDiiActivity(days)
             .then((res) => {
-                if (mounted) {
-                    setData(res.data);
-                    setLoading(false);
-                }
+                setData(res.data);
+                setLoading(false);
             })
             .catch(() => {
-                if (mounted) {
-                    setError('Unable to load institutional flow data.');
-                    setLoading(false);
-                }
+                setError('Unable to load institutional flow data.');
+                setLoading(false);
             });
-
-        return () => {
-            mounted = false;
-        };
     }, [days]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const rawRecords = data?.data;
     const records = useMemo(() => rawRecords || [], [rawRecords]);
     const summary = data?.summary || {};
     const asOf = data?.as_of || 'Today';
 
-    // Chart dimensions & scaling
+    const latestRecord = records[0] || {};
+    const latestFii = latestRecord.fii_net_value || 0;
+    const latestDii = latestRecord.dii_net_value || 0;
+    const latestTotal = latestFii + latestDii;
+
     const chartWidth = 960;
     const chartHeight = 260;
     const padding = { top: 20, right: 24, bottom: 40, left: 64 };
@@ -56,14 +55,12 @@ function FiiDiiActivity() {
             return { maxAbsVal: 1000, zeroY: innerHeight / 2, barWidth: 8, chartPoints: [] };
         }
 
-        // Chronological order for chart (oldest to newest)
         const chrono = [...records].reverse();
         let maxVal = 1000;
         chrono.forEach((r) => {
             maxVal = Math.max(maxVal, Math.abs(r.fii_net_value || 0), Math.abs(r.dii_net_value || 0));
         });
 
-        // Add 15% headroom
         maxVal = Math.ceil(maxVal * 1.15);
 
         const zero = padding.top + innerHeight / 2;
@@ -103,86 +100,67 @@ function FiiDiiActivity() {
 
     return (
         <section className="fii-dii-section-card">
-            {/* Header & Controls */}
             <div className="fii-dii-header">
                 <div>
                     <span className="fintech-eyebrow">INSTITUTIONAL LIQUIDITY</span>
                     <h2 className="card-title">FII & DII Inflow / Outflow Analytics</h2>
                     <p className="fii-dii-subtitle">
-                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities (₹ Crores).
+                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities (₹Cr)
                     </p>
                 </div>
                 <div className="fii-dii-toolbar">
-                    <div className="chart-range-pills">
-                        <button
-                            type="button"
-                            className={`range-pill-btn ${days === 10 ? 'active' : ''}`}
-                            onClick={() => setDays(10)}
-                        >
-                            10D
-                        </button>
-                        <button
-                            type="button"
-                            className={`range-pill-btn ${days === 20 ? 'active' : ''}`}
-                            onClick={() => setDays(20)}
-                        >
-                            20D
-                        </button>
-                        <button
-                            type="button"
-                            className={`range-pill-btn ${days === 30 ? 'active' : ''}`}
-                            onClick={() => setDays(30)}
-                        >
-                            30D
-                        </button>
+                    <div className="fii-dii-days-pill">
+                        {[7, 15, 30].map((d) => (
+                            <button
+                                key={d}
+                                className={`pill-btn ${days === d ? 'active' : ''}`}
+                                onClick={() => setDays(d)}
+                            >
+                                {d} Days
+                            </button>
+                        ))}
                     </div>
+                    <button
+                        className="fii-refresh-btn"
+                        onClick={loadData}
+                        disabled={loading}
+                        title="Refresh FII/DII Data"
+                    >
+                        {loading ? 'Refreshing…' : '↻ Refresh'}
+                    </button>
                 </div>
             </div>
 
-            {/* Quick Glance Summary Cards */}
-            <div className="fii-dii-stats-row">
-                <div className="fii-dii-stat-chip">
-                    <div className="fii-stat-label-group">
-                        <span className="stat-pill fii">FII TODAY</span>
-                        <span className="stat-sub-date">{summary.today_date || 'Latest'}</span>
-                    </div>
-                    <div className={`stat-val-mono ${summary.today_fii_net >= 0 ? 'up' : 'down'}`}>
-                        {formatCr(summary.today_fii_net)}
+            <div className="fii-dii-kpi-grid">
+                <div className="fii-dii-kpi-card">
+                    <span className="kpi-label">Latest FII Net Inflow</span>
+                    <div className={`kpi-val ${latestFii >= 0 ? 'text-up' : 'text-down'}`}>
+                        {formatCr(latestFii)}
                     </div>
                 </div>
 
-                <div className="fii-dii-stat-chip">
-                    <div className="fii-stat-label-group">
-                        <span className="stat-pill dii">DII TODAY</span>
-                        <span className="stat-sub-date">{summary.today_date || 'Latest'}</span>
-                    </div>
-                    <div className={`stat-val-mono ${summary.today_dii_net >= 0 ? 'up' : 'down'}`}>
-                        {formatCr(summary.today_dii_net)}
+                <div className="fii-dii-kpi-card">
+                    <span className="kpi-label">Latest DII Net Inflow</span>
+                    <div className={`kpi-val ${latestDii >= 0 ? 'text-up' : 'text-down'}`}>
+                        {formatCr(latestDii)}
                     </div>
                 </div>
 
-                <div className="fii-dii-stat-chip">
-                    <div className="fii-stat-label-group">
-                        <span className="stat-pill combined">NET INSTITUTIONAL</span>
-                        <span className="stat-sub-date">Combined</span>
-                    </div>
-                    <div className={`stat-val-mono ${summary.today_total_net >= 0 ? 'up' : 'down'}`}>
-                        {formatCr(summary.today_total_net)}
+                <div className="fii-dii-kpi-card">
+                    <span className="kpi-label">Combined Daily Net</span>
+                    <div className={`kpi-val ${latestTotal >= 0 ? 'text-up' : 'text-down'}`}>
+                        {formatCr(latestTotal)}
                     </div>
                 </div>
 
-                <div className="fii-dii-stat-chip">
-                    <div className="fii-stat-label-group">
-                        <span className="stat-pill cumulative">{days}D CUMULATIVE</span>
-                        <span className="stat-sub-date">FII + DII Total</span>
-                    </div>
-                    <div className={`stat-val-mono ${summary.cumulative_net_30d >= 0 ? 'up' : 'down'}`}>
+                <div className="fii-dii-kpi-card">
+                    <span className="kpi-label">30-Day Cumulative Net</span>
+                    <div className={`kpi-val ${summary.cumulative_net_30d >= 0 ? 'text-up' : 'text-down'}`}>
                         {formatCr(summary.cumulative_net_30d)}
                     </div>
                 </div>
             </div>
 
-            {/* Legend & Chart View */}
             <div className="fii-dii-chart-container">
                 <div className="fii-dii-legend-bar">
                     <div className="legend-items">
@@ -214,7 +192,6 @@ function FiiDiiActivity() {
                             height="240"
                             className="fii-dii-svg"
                         >
-                            {/* Chart Container Background Box */}
                             <rect
                                 x="0"
                                 y="0"
@@ -226,7 +203,6 @@ function FiiDiiActivity() {
                                 strokeWidth="1"
                             />
 
-                            {/* Upper & Lower Gridlines */}
                             <line
                                 x1={padding.left}
                                 x2={chartWidth - padding.right}
@@ -247,7 +223,6 @@ function FiiDiiActivity() {
                                 +₹{(maxAbsVal / 1000).toFixed(1)}k Cr
                             </text>
 
-                            {/* Center Zero Baseline */}
                             <line
                                 x1={padding.left}
                                 x2={chartWidth - padding.right}
@@ -288,7 +263,6 @@ function FiiDiiActivity() {
                                 -₹{(maxAbsVal / 1000).toFixed(1)}k Cr
                             </text>
 
-                            {/* Dual Day-wise Bars (FII and DII) */}
                             {chartPoints.map((pt, idx) => {
                                 const isHovered = hoveredIndex === idx;
                                 return (
@@ -298,7 +272,6 @@ function FiiDiiActivity() {
                                         onMouseLeave={() => setHoveredIndex(null)}
                                         style={{ cursor: 'pointer' }}
                                     >
-                                        {/* Hover Highlight Column */}
                                         {isHovered && (
                                             <rect
                                                 x={pt.centerX - barWidth * 1.6}
@@ -310,7 +283,6 @@ function FiiDiiActivity() {
                                             />
                                         )}
 
-                                        {/* FII Bar */}
                                         <rect
                                             x={pt.fiiX}
                                             y={pt.fiiY}
@@ -321,7 +293,6 @@ function FiiDiiActivity() {
                                             opacity={isHovered ? 1 : 0.88}
                                         />
 
-                                        {/* DII Bar */}
                                         <rect
                                             x={pt.diiX}
                                             y={pt.diiY}
@@ -332,7 +303,6 @@ function FiiDiiActivity() {
                                             opacity={isHovered ? 1 : 0.88}
                                         />
 
-                                        {/* X Axis Date Tick (every 2-3 items) */}
                                         {(chartPoints.length <= 15 || idx % 2 === 0) && (
                                             <text
                                                 x={pt.centerX}
@@ -351,7 +321,6 @@ function FiiDiiActivity() {
                             })}
                         </svg>
 
-                        {/* Interactive Hover HUD */}
                         {hoveredIndex != null && chartPoints[hoveredIndex] && (
                             <div className="fii-hover-hud">
                                 <strong>{chartPoints[hoveredIndex].record.date}</strong>
@@ -376,7 +345,6 @@ function FiiDiiActivity() {
                 )}
             </div>
 
-            {/* Moneycontrol-style Tabular Data */}
             <div className="fii-dii-table-shell">
                 <div className="table-head-row">
                     <h3 className="table-title">Day-Wise Institutional Breakdown (₹ Cr)</h3>
