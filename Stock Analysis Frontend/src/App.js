@@ -8,6 +8,7 @@ import Analysis from './pages/Analysis';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Portfolio from './pages/Portfolio';
+import MarketActivity from './pages/MarketActivity';
 
 function App() {
     return (
@@ -38,6 +39,14 @@ function App() {
                             element={
                                 <ProtectedRoute>
                                     <Portfolio />
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
+                            path="/market-activity"
+                            element={
+                                <ProtectedRoute>
+                                    <MarketActivity />
                                 </ProtectedRoute>
                             }
                         />

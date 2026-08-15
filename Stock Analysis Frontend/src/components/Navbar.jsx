@@ -21,6 +21,7 @@ function Navbar() {
                 <Link className={"nav-link" + (location.pathname === '/' ? ' active' : '')} to="/">Dashboard</Link>
                 <Link className={"nav-link" + (location.pathname === '/analysis' ? ' active' : '')} to="/analysis">Analysis</Link>
                 <Link className={"nav-link" + (location.pathname === '/portfolio' ? ' active' : '')} to="/portfolio">Portfolio</Link>
+                <Link className={"nav-link" + (location.pathname === '/market-activity' ? ' active' : '')} to="/market-activity">FII / DII</Link>
             </div>
             <div className="navbar-actions">
                 <button
