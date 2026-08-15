@@ -32,3 +32,22 @@ class Prediction(models.Model):
 
     def __str__(self):
         return f"{self.stock.symbol} - {self.recommendation}"
+
+
+class FiiDiiActivity(models.Model):
+    date = models.DateField(unique=True, db_index=True)
+    fii_buy_value = models.FloatField(default=0.0)
+    fii_sell_value = models.FloatField(default=0.0)
+    fii_net_value = models.FloatField(default=0.0)
+    dii_buy_value = models.FloatField(default=0.0)
+    dii_sell_value = models.FloatField(default=0.0)
+    dii_net_value = models.FloatField(default=0.0)
+    total_net_value = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+        verbose_name_plural = 'FII / DII Activities'
+
+    def __str__(self):
+        return f"{self.date} | FII Net: {self.fii_net_value} | DII Net: {self.dii_net_value}"

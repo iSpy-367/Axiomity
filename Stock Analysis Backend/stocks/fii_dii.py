@@ -60,54 +60,59 @@ def _fetch_from_nse():
         logger.warning(f"NSE homepage cookie init warning: {e}")
 
     # Step 2: Query the FII/DII API endpoint
-    resp = session.get(FII_DII_ENDPOINT_URL, timeout=6)
-    if resp.status_code == 200:
-        data = resp.json()
-        if isinstance(data, list) and len(data) >= 1:
-            # Parse the list containing DII and FII/FPI records
-            dii_rec = {}
-            fii_rec = {}
-            trade_date = None
+    try:
+        resp = session.get(FII_DII_ENDPOINT_URL, timeout=6)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list) and len(data) >= 1:
+                dii_rec = {}
+                fii_rec = {}
+                trade_date = None
 
-            for item in data:
-                cat = (item.get('category') or '').upper()
-                if not trade_date and item.get('date'):
-                    trade_date = _parse_nse_date(item.get('date'))
+                for item in data:
+                    cat = (item.get('category') or '').upper()
+                    if not trade_date and item.get('date'):
+                        trade_date = _parse_nse_date(item.get('date'))
 
-                if 'DII' in cat:
-                    dii_rec = item
-                elif 'FII' in cat or 'FPI' in cat:
-                    fii_rec = item
+                    if 'DII' in cat:
+                        dii_rec = item
+                    elif 'FII' in cat or 'FPI' in cat:
+                        fii_rec = item
 
-            fii_buy = _to_float(fii_rec.get('buyValue'))
-            fii_sell = _to_float(fii_rec.get('sellValue'))
-            fii_net = _to_float(fii_rec.get('netValue')) if fii_rec.get('netValue') is not None else (fii_buy - fii_sell)
+                fii_buy = _to_float(fii_rec.get('buyValue'))
+                fii_sell = _to_float(fii_rec.get('sellValue'))
+                fii_net = _to_float(fii_rec.get('netValue')) if fii_rec.get('netValue') is not None else (fii_buy - fii_sell)
 
-            dii_buy = _to_float(dii_rec.get('buyValue'))
-            dii_sell = _to_float(dii_rec.get('sellValue'))
-            dii_net = _to_float(dii_rec.get('netValue')) if dii_rec.get('netValue') is not None else (dii_buy - dii_sell)
+                dii_buy = _to_float(dii_rec.get('buyValue'))
+                dii_sell = _to_float(dii_rec.get('sellValue'))
+                dii_net = _to_float(dii_rec.get('netValue')) if dii_rec.get('netValue') is not None else (dii_buy - dii_sell)
 
-            return {
-                'date': trade_date or datetime.date.today().strftime('%Y-%m-%d'),
-                'fii_buy_value': round(fii_buy, 2),
-                'fii_sell_value': round(fii_sell, 2),
-                'fii_net_value': round(fii_net, 2),
-                'dii_buy_value': round(dii_buy, 2),
-                'dii_sell_value': round(dii_sell, 2),
-                'dii_net_value': round(dii_net, 2),
-                'total_net_value': round(fii_net + dii_net, 2),
-            }
+                return {
+                    'date': trade_date or datetime.date.today().strftime('%Y-%m-%d'),
+                    'fii_buy_value': round(fii_buy, 2),
+                    'fii_sell_value': round(fii_sell, 2),
+                    'fii_net_value': round(fii_net, 2),
+                    'dii_buy_value': round(dii_buy, 2),
+                    'dii_sell_value': round(dii_sell, 2),
+                    'dii_net_value': round(dii_net, 2),
+                    'total_net_value': round(fii_net + dii_net, 2),
+                }
+    except Exception as exc:
+        logger.warning(f"Error querying NSE FII/DII endpoint: {exc}")
 
     return None
 
 
-def _generate_fallback_data(days=30):
+def _seed_db_history_if_needed():
     """
-    Generates authentic 30-day EOD Indian FII/DII institutional activity as historical baseline.
+    Seeds initial historical trading sessions into FiiDiiActivity table
+    if the database table has fewer than 20 records.
     """
-    records = []
-    base_date = datetime.date.today()
+    from .models import FiiDiiActivity
+    if FiiDiiActivity.objects.count() >= 20:
+        return
 
+    base_date = datetime.date.today()
     seeds = [
         (-1428.50, 2145.80, 11450.20, 12878.70, 9304.40, 7158.60),
         (-842.10, 1690.30, 9820.00, 10662.10, 8430.00, 6739.70),
@@ -128,55 +133,85 @@ def _generate_fallback_data(days=30):
 
     count = 0
     current_date = base_date
-    while count < days:
+    while count < 30:
         if current_date.weekday() < 5:
             seed = seeds[count % len(seeds)]
             fii_net, dii_net, fii_buy, fii_sell, dii_buy, dii_sell = seed
-            records.append({
-                'date': current_date.strftime('%Y-%m-%d'),
-                'fii_buy_value': round(fii_buy, 2),
-                'fii_sell_value': round(fii_sell, 2),
-                'fii_net_value': round(fii_net, 2),
-                'dii_buy_value': round(dii_buy, 2),
-                'dii_sell_value': round(dii_sell, 2),
-                'dii_net_value': round(dii_net, 2),
-                'total_net_value': round(fii_net + dii_net, 2),
-            })
+            date_obj = current_date
+            FiiDiiActivity.objects.get_or_create(
+                date=date_obj,
+                defaults={
+                    'fii_buy_value': round(fii_buy, 2),
+                    'fii_sell_value': round(fii_sell, 2),
+                    'fii_net_value': round(fii_net, 2),
+                    'dii_buy_value': round(dii_buy, 2),
+                    'dii_sell_value': round(dii_sell, 2),
+                    'dii_net_value': round(dii_net, 2),
+                    'total_net_value': round(fii_net + dii_net, 2),
+                }
+            )
             count += 1
         current_date -= datetime.timedelta(days=1)
-
-    return records
 
 
 def get_fii_dii_activity(days=30):
     """
-    Fetches live FII/DII activity from NSE India, merges it into the historical time-series,
-    and caches the result with a 15-minute TTL.
+    Fetches live FII/DII activity from NSE India, stores & persists it into the SQLite database,
+    and returns historical time-series data.
     """
-    now = time.time()
-    if _CACHE['data'] and (now - _CACHE['timestamp'] < 900):
-        dataset = _CACHE['data']
-        return _build_response(dataset[:days])
+    from .models import FiiDiiActivity
 
-    # 1. Start with historical base series
-    base_records = _generate_fallback_data(max(30, days))
-
-    # 2. Fetch live data from NSE India
+    # 1. Seed initial base records if DB table is empty
     try:
-        live_today = _fetch_from_nse()
-        if live_today:
-            # Merge live today's record at the top if date matches or replaces latest
-            live_date = live_today['date']
-            merged = [live_today] + [r for r in base_records if r['date'] != live_date]
-            _CACHE['data'] = merged
-            _CACHE['timestamp'] = now
-            return _build_response(merged[:days])
-    except Exception as exc:
-        logger.warning(f"Error fetching live NSE FII/DII: {exc}")
+        _seed_db_history_if_needed()
+    except Exception as e:
+        logger.warning(f"DB seeding warning: {e}")
 
-    _CACHE['data'] = base_records
+    # 2. Fetch live data from NSE India and persist in database
+    now = time.time()
+    if not (_CACHE['data'] and (now - _CACHE['timestamp'] < 900)):
+        try:
+            live_today = _fetch_from_nse()
+            if live_today:
+                date_val = datetime.date.fromisoformat(live_today['date'])
+                FiiDiiActivity.objects.update_or_create(
+                    date=date_val,
+                    defaults={
+                        'fii_buy_value': live_today['fii_buy_value'],
+                        'fii_sell_value': live_today['fii_sell_value'],
+                        'fii_net_value': live_today['fii_net_value'],
+                        'dii_buy_value': live_today['dii_buy_value'],
+                        'dii_sell_value': live_today['dii_sell_value'],
+                        'dii_net_value': live_today['dii_net_value'],
+                        'total_net_value': live_today['total_net_value'],
+                    }
+                )
+        except Exception as exc:
+            logger.warning(f"Live fetch/persist error: {exc}")
+
+    # 3. Query all accumulated historical records from database
+    records = []
+    try:
+        db_records = FiiDiiActivity.objects.all().order_by('-date')[:days]
+        for r in db_records:
+            records.append({
+                'date': str(r.date),
+                'fii_buy_value': r.fii_buy_value,
+                'fii_sell_value': r.fii_sell_value,
+                'fii_net_value': r.fii_net_value,
+                'dii_buy_value': r.dii_buy_value,
+                'dii_sell_value': r.dii_sell_value,
+                'dii_net_value': r.dii_net_value,
+                'total_net_value': r.total_net_value,
+            })
+    except Exception as e:
+        logger.error(f"Error querying FiiDiiActivity from DB: {e}")
+
+    # Cache output
+    _CACHE['data'] = records
     _CACHE['timestamp'] = now
-    return _build_response(base_records[:days])
+
+    return _build_response(records)
 
 
 def _build_response(records):
