@@ -574,13 +574,30 @@ def analyze_stock(request, symbol):
 
             import datetime
             latest_date = history_list[-1].date
+            if isinstance(latest_date, str):
+                try:
+                    latest_date = datetime.date.fromisoformat(latest_date)
+                except Exception:
+                    latest_date = datetime.date.today()
+            elif not isinstance(latest_date, (datetime.date, datetime.datetime)):
+                latest_date = datetime.date.today()
+
             week_start = latest_date - datetime.timedelta(days=7)
             month_start = latest_date - datetime.timedelta(days=30)
             quarter_start = latest_date - datetime.timedelta(days=90)
 
-            week_records = [h for h in history_list if h.date >= week_start]
-            month_records = [h for h in history_list if h.date >= month_start]
-            quarter_records = [h for h in history_list if h.date >= quarter_start]
+            def _get_h_date(h):
+                d = h.date
+                if isinstance(d, str):
+                    try:
+                        return datetime.date.fromisoformat(d)
+                    except Exception:
+                        return latest_date
+                return d
+
+            week_records = [h for h in history_list if _get_h_date(h) >= week_start]
+            month_records = [h for h in history_list if _get_h_date(h) >= month_start]
+            quarter_records = [h for h in history_list if _get_h_date(h) >= quarter_start]
 
             if week_records:
                 week_high = max([_clean_float(h.high or h.close_price) for h in week_records])
@@ -589,7 +606,13 @@ def analyze_stock(request, symbol):
             if quarter_records:
                 quarter_high = max([_clean_float(h.high or h.close_price) for h in quarter_records])
 
-        info = yf.Ticker(stock.symbol).info or {}
+        info = {}
+        try:
+            ticker = yf.Ticker(stock.symbol)
+            info = ticker.info or {}
+        except Exception:
+            info = {}
+
         fundamentals = {
             'roe': _sanitize_val(info.get('returnOnEquity') or info.get('returnOnEquityTTM')),
             'debt_to_equity': _sanitize_val(info.get('debtToEquity')),

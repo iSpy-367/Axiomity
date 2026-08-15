@@ -17,7 +17,6 @@ const POPULAR_TICKERS = [
     { symbol: 'TCS', name: 'TCS' },
     { symbol: 'INFY', name: 'Infosys' },
     { symbol: 'HDFCBANK', name: 'HDFC Bank' },
-    { symbol: 'VBL', name: 'Varun Bev' },
     { symbol: 'TATAMOTORS', name: 'Tata Motors' },
     { symbol: 'ICICIBANK', name: 'ICICI Bank' },
 ];
