@@ -30,6 +30,13 @@ function StockChart({
         return [];
     }, [data, propPrediction]);
 
+    const isIndex = useMemo(() => {
+        const sym = (data?.symbol || data?.script_code || '').toString().trim();
+        return sym.startsWith('^') || compact;
+    }, [data, compact]);
+
+    const currencyPrefix = isIndex ? '' : '₹';
+
     // 2. Time Range State
     const [selectedRange, setSelectedRange] = useState(propRange || '1M');
     useEffect(() => {
@@ -410,26 +417,26 @@ function StockChart({
                     {isPrediction ? (
                         <div className="hud-metric-chip forecast">
                             <span className="hud-label">FORECAST</span>
-                            <strong className="hud-mono-val">₹{Number(activePoint.predicted_price).toFixed(2)}</strong>
+                            <strong className="hud-mono-val">{currencyPrefix}{Number(activePoint.predicted_price).toFixed(2)}</strong>
                         </div>
                     ) : (
                         <div className="hud-metrics-row">
                             <div className="hud-metric-chip">
                                 <span className="hud-label">O</span>
-                                <span className="hud-mono-val">₹{Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price || 0).toFixed(2)}</span>
+                                <span className="hud-mono-val">{currencyPrefix}{Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price || 0).toFixed(2)}</span>
                             </div>
                             <div className="hud-metric-chip">
                                 <span className="hud-label">H</span>
-                                <span className="hud-mono-val">₹{Number(activePoint.high != null ? activePoint.high : activePoint.close_price || 0).toFixed(2)}</span>
+                                <span className="hud-mono-val">{currencyPrefix}{Number(activePoint.high != null ? activePoint.high : activePoint.close_price || 0).toFixed(2)}</span>
                             </div>
                             <div className="hud-metric-chip">
                                 <span className="hud-label">L</span>
-                                <span className="hud-mono-val">₹{Number(activePoint.low != null ? activePoint.low : activePoint.close_price || 0).toFixed(2)}</span>
+                                <span className="hud-mono-val">{currencyPrefix}{Number(activePoint.low != null ? activePoint.low : activePoint.close_price || 0).toFixed(2)}</span>
                             </div>
                             <div className="hud-metric-chip">
                                 <span className="hud-label">C</span>
                                 <span className={`hud-mono-val ${Number(activePoint.close_price) >= Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price) ? 'text-up' : 'text-down'}`}>
-                                    ₹{Number(activePoint.close_price || 0).toFixed(2)}
+                                    {currencyPrefix}{Number(activePoint.close_price || 0).toFixed(2)}
                                 </span>
                             </div>
                             {priceChange != null && (
@@ -491,7 +498,7 @@ function StockChart({
                             <g key={tick.value} className="grid-line-group">
                                 <line x1="0" x2={innerWidth} y1={tick.y} y2={tick.y} stroke="var(--chart-grid, #f1f5f9)" strokeDasharray="3 3" />
                                 <text x="-12" y={tick.y + 4} textAnchor="end" fontSize="11" fontWeight="600" fill="var(--chart-text, #64748b)" className="axis-mono-label">
-                                    ₹{tick.value.toLocaleString('en-IN')}
+                                    {currencyPrefix}{tick.value.toLocaleString('en-IN')}
                                 </text>
                             </g>
                         ))}

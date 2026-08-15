@@ -161,7 +161,7 @@ function Portfolio() {
 
                     {/* Net P&L (After Brokerage) */}
                     <div className="portfolio-stat-card">
-                        <span className="stat-card-label">Overall Net P&L</span>
+                        <span className="stat-card-label">Net P&L</span>
                         <div className="stat-card-value" style={{ color: totalNetPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
                             {totalNetPnl >= 0 ? '+' : ''}{formatCurrency(totalNetPnl)}
                         </div>

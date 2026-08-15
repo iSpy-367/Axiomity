@@ -218,7 +218,7 @@ function Dashboard() {
                                 return (
                                     <div className="index-header-points">
                                         <strong className="index-points-num">
-                                            ₹{stats.points.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            {stats.points.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </strong>
                                         <span className={`index-points-badge ${isUp ? 'bullish' : 'bearish'}`}>
                                             {isUp ? '▲ +' : '▼ '}
@@ -256,7 +256,7 @@ function Dashboard() {
                                 return (
                                     <div className="index-header-points">
                                         <strong className="index-points-num">
-                                            ₹{stats.points.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            {stats.points.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </strong>
                                         <span className={`index-points-badge ${isUp ? 'bullish' : 'bearish'}`}>
                                             {isUp ? '▲ +' : '▼ '}
