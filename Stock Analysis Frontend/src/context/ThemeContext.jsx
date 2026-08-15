@@ -12,11 +12,11 @@ export function ThemeProvider({ children }) {
         localStorage.setItem('axiomity-theme', 'dark');
     }, []);
 
-    const toggleTheme = () => {};
-    const setTheme = () => {};
+    const toggleTheme = () => { };
+    const setTheme = () => { };
 
     return (
-        <ThemeContext.Provider value={{ theme: 'dark', isDark: true, toggleTheme, setTheme }}>
+        <ThemeContext.Provider value={{ theme, isDark: true, toggleTheme, setTheme }}>
             {children}
         </ThemeContext.Provider>
     );

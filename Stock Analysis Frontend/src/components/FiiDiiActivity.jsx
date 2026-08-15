@@ -39,7 +39,8 @@ function FiiDiiActivity() {
         };
     }, [days]);
 
-    const records = data?.data || [];
+    const rawRecords = data?.data;
+    const records = useMemo(() => rawRecords || [], [rawRecords]);
     const summary = data?.summary || {};
     const asOf = data?.as_of || 'Today';
 
