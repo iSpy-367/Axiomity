@@ -39,11 +39,6 @@ function FiiDiiActivity() {
     const summary = data?.summary || {};
     const asOf = data?.as_of || 'Today';
 
-    const latestRecord = records[0] || {};
-    const latestFii = latestRecord.fii_net_value || 0;
-    const latestDii = latestRecord.dii_net_value || 0;
-    const latestTotal = latestFii + latestDii;
-
     const chartWidth = 960;
     const chartHeight = 260;
     const padding = { top: 20, right: 24, bottom: 40, left: 64 };
@@ -105,57 +100,73 @@ function FiiDiiActivity() {
                     <span className="fintech-eyebrow">INSTITUTIONAL LIQUIDITY</span>
                     <h2 className="card-title">FII & DII Inflow / Outflow Analytics</h2>
                     <p className="fii-dii-subtitle">
-                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities (₹Cr)
+                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities (₹ Crores).
                     </p>
                 </div>
                 <div className="fii-dii-toolbar">
-                    <div className="fii-dii-days-pill">
-                        {[7, 15, 30].map((d) => (
-                            <button
-                                key={d}
-                                className={`pill-btn ${days === d ? 'active' : ''}`}
-                                onClick={() => setDays(d)}
-                            >
-                                {d} Days
-                            </button>
-                        ))}
+                    <div className="chart-range-pills">
+                        <button
+                            type="button"
+                            className={`range-pill-btn ${days === 10 ? 'active' : ''}`}
+                            onClick={() => setDays(10)}
+                        >
+                            10D
+                        </button>
+                        <button
+                            type="button"
+                            className={`range-pill-btn ${days === 20 ? 'active' : ''}`}
+                            onClick={() => setDays(20)}
+                        >
+                            20D
+                        </button>
+                        <button
+                            type="button"
+                            className={`range-pill-btn ${days === 30 ? 'active' : ''}`}
+                            onClick={() => setDays(30)}
+                        >
+                            30D
+                        </button>
                     </div>
-                    <button
-                        className="fii-refresh-btn"
-                        onClick={loadData}
-                        disabled={loading}
-                        title="Refresh FII/DII Data"
-                    >
-                        {loading ? 'Refreshing…' : '↻ Refresh'}
-                    </button>
                 </div>
             </div>
 
-            <div className="fii-dii-kpi-grid">
-                <div className="fii-dii-kpi-card">
-                    <span className="kpi-label">Latest FII Net Inflow</span>
-                    <div className={`kpi-val ${latestFii >= 0 ? 'text-up' : 'text-down'}`}>
-                        {formatCr(latestFii)}
+            <div className="fii-dii-stats-row">
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill fii">FII TODAY</span>
+                        <span className="stat-sub-date">{summary.today_date || 'Latest'}</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.today_fii_net >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.today_fii_net)}
                     </div>
                 </div>
 
-                <div className="fii-dii-kpi-card">
-                    <span className="kpi-label">Latest DII Net Inflow</span>
-                    <div className={`kpi-val ${latestDii >= 0 ? 'text-up' : 'text-down'}`}>
-                        {formatCr(latestDii)}
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill dii">DII TODAY</span>
+                        <span className="stat-sub-date">{summary.today_date || 'Latest'}</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.today_dii_net >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.today_dii_net)}
                     </div>
                 </div>
 
-                <div className="fii-dii-kpi-card">
-                    <span className="kpi-label">Combined Daily Net</span>
-                    <div className={`kpi-val ${latestTotal >= 0 ? 'text-up' : 'text-down'}`}>
-                        {formatCr(latestTotal)}
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill combined">NET INSTITUTIONAL</span>
+                        <span className="stat-sub-date">Combined</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.today_total_net >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.today_total_net)}
                     </div>
                 </div>
 
-                <div className="fii-dii-kpi-card">
-                    <span className="kpi-label">30-Day Cumulative Net</span>
-                    <div className={`kpi-val ${summary.cumulative_net_30d >= 0 ? 'text-up' : 'text-down'}`}>
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill cumulative">{days}D CUMULATIVE</span>
+                        <span className="stat-sub-date">FII + DII Total</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.cumulative_net_30d >= 0 ? 'up' : 'down'}`}>
                         {formatCr(summary.cumulative_net_30d)}
                     </div>
                 </div>
