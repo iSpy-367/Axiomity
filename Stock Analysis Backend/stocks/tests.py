@@ -1,12 +1,12 @@
 from unittest.mock import patch, MagicMock
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase
 from rest_framework.test import APIClient
 import pandas as pd
 import datetime
 
 from .analysis import generate_recommendation
 from .symbol_master import symbol_master
-from .views import _resolve_symbol, _is_valid_stock_ticker, _sanity_check_indian_stock
+from .views import _resolve_symbol, _is_valid_stock_ticker
 
 
 class RecommendationTests(SimpleTestCase):

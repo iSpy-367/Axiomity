@@ -16,7 +16,7 @@ class Portfolio(models.Model):
     stock = models.ForeignKey('stocks.Stock', on_delete=models.CASCADE)
     quantity = models.IntegerField()
     buy_price = models.FloatField()
-    buy_date = models.DateField(default=timezone.now)
+    buy_date = models.DateField(default=timezone.localdate)
     sell_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     exit_price = models.FloatField(null=True, blank=True)

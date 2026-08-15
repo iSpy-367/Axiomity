@@ -12,7 +12,6 @@ import {
 
 const BUY_BROKERAGE_RATE = 0.0015;   // 0.15% buying brokerage rate on buy turnover
 const SELL_BROKERAGE_RATE = 0.0015;  // 0.15% selling brokerage rate on LTP / exit turnover
-const BROKERAGE_RATE = 0.003;        // Combined 0.30% total rate
 
 const ALLOC_COLORS = [
     '#2563eb', '#10b981', '#f59e0b', '#8b5cf6',
@@ -98,11 +97,6 @@ function Portfolio() {
         return sum + (gross - brokerage);
     }, 0);
 
-    const totalExitedRealizedBrokerage = exitedPositions.reduce((sum, item) => {
-        if (item.realized_brokerage != null) return sum + Number(item.realized_brokerage);
-        if (item.brokerage_cost != null) return sum + Number(item.brokerage_cost);
-        return sum + calcItemBrokerage(item.buy_price, item.exit_price, item.quantity).total;
-    }, 0);
 
     // 3. Absolute P&L = Sum(Exited Realized P&L) + Sum(Active Unrealized P&L)
     const absolutePnl = totalActiveNetPnl + totalExitedRealizedNetPnl;
@@ -685,7 +679,7 @@ function Portfolio() {
                                 <input
                                     ref={symbolInputRef}
                                     type="text"
-                                    placeholder="e.g. RELIANCE, TCS, VBL, LTM"
+                                    placeholder="Enter Symbol"
                                     value={scriptSymbol}
                                     onChange={(e) => setScriptSymbol(e.target.value.toUpperCase())}
                                     onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}

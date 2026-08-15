@@ -1,3 +1,1 @@
-from django.db import models
-
-# Create your models here.
+# Users app relies on django.contrib.auth.models.User.

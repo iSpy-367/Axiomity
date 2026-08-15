@@ -5,7 +5,7 @@ from rest_framework import generics, permissions, status as http_status, views
 from rest_framework.response import Response
 
 from stocks.views import _resolve_symbol
-from .models import Portfolio, BUY_BROKERAGE_RATE, SELL_BROKERAGE_RATE, BROKERAGE_RATE
+from .models import Portfolio, BUY_BROKERAGE_RATE, SELL_BROKERAGE_RATE
 from .serializers import PortfolioSerializer
 
 

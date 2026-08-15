@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from stocks.models import Stock
 from stocks.views import _resolve_symbol
-from .models import Portfolio, BUY_BROKERAGE_RATE, SELL_BROKERAGE_RATE, BROKERAGE_RATE
+from .models import Portfolio, BUY_BROKERAGE_RATE, SELL_BROKERAGE_RATE
 
 
 def _script_code(normalized_symbol):

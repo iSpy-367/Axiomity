@@ -6,3 +6,5 @@ build/
 db.sqlite3
 .env
 logo.jpg
+*_report.txt
+*.log
