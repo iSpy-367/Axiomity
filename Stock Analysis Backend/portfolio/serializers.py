@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from stocks.models import Stock
+from stocks.views import _resolve_symbol
 from .models import Portfolio
 
 
@@ -43,15 +44,30 @@ class PortfolioSerializer(serializers.ModelSerializer):
         if not normalized:
             return None
 
-        exact = Stock.objects.filter(symbol__iexact=normalized).first()
-        if exact:
-            return exact
+        stock = Stock.objects.filter(symbol__iexact=normalized).first()
+        if not stock and '.' not in normalized:
+            stock = Stock.objects.filter(symbol__iexact=f'{normalized}.NS').first()
+            if not stock:
+                stock = Stock.objects.filter(symbol__iexact=f'{normalized}.BO').first()
 
-        if '.' not in normalized:
-            ns_symbol = f'{normalized}.NS'
-            return Stock.objects.filter(symbol__iexact=ns_symbol).first()
+        if stock and stock.current_price and stock.current_price > 0:
+            return stock
 
-        return None
+        try:
+            resolved_symbol, info, hist = _resolve_symbol(normalized)
+            if resolved_symbol:
+                stock_obj, _ = Stock.objects.get_or_create(symbol=resolved_symbol, defaults={'name': resolved_symbol})
+                stock_obj.name = (info or {}).get('longName') or (info or {}).get('shortName') or resolved_symbol
+                if hist is not None and not hist.empty:
+                    latest_close = float(hist['Close'].dropna().iloc[-1])
+                    if latest_close > 0:
+                        stock_obj.current_price = latest_close
+                stock_obj.save()
+                return stock_obj
+        except Exception:
+            pass
+
+        return stock
 
     def create(self, validated_data):
         symbol = validated_data.pop('symbol', None)

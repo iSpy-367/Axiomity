@@ -20,6 +20,7 @@ api.interceptors.response.use(
         const originalRequest = error.config;
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
+            
             const refreshToken = localStorage.getItem('refreshToken');
             if (refreshToken) {
                 try {
@@ -54,6 +55,7 @@ export const getProfile = () =>
 export const fetchStock = (symbol) => api.get(`/stocks/fetch/${symbol}/`);
 export const getStock = (symbol) => api.get(`/stocks/get/${symbol}/`);
 export const analyzeStock = (symbol) => api.get(`/stocks/analyze/${symbol}/`);
+export const searchStocks = (query) => api.get(`/stocks/search/?q=${encodeURIComponent(query)}`);
 export const getTopMovers = () => api.get('/stocks/top-movers/');
 export const getPortfolio = () => api.get('/portfolio/');
 export const addPortfolioItem = (data) => api.post('/portfolio/', data);

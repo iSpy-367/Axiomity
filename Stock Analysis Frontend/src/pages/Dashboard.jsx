@@ -5,13 +5,26 @@ import Navbar from '../components/Navbar';
 import { fetchStock, getStock, getTopMovers } from '../services/api';
 
 function Dashboard() {
-    const [error, setError] = useState('');
     const [topMovers, setTopMovers] = useState({ top_active: [], most_gained: [], most_lost: [] });
     const [selectedCap, setSelectedCap] = useState('all');
     const [marketError, setMarketError] = useState('');
     const [nifty50Data, setNifty50Data] = useState(null);
     const [bankNiftyData, setBankNiftyData] = useState(null);
     const [indexError, setIndexError] = useState('');
+    const [indexLoading, setIndexLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // Live Clock & Last Refreshed State
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [lastRefreshed, setLastRefreshed] = useState(new Date());
+
+    // Live 1-second clock interval
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     const normalizedCap = (cap) => (cap || '').toString().trim().toLowerCase();
     const num = (v) => (v == null ? 0 : Number(v));
@@ -32,12 +45,6 @@ function Dashboard() {
         .sort((a, b) => num(a.change_percent) - num(b.change_percent))
         .slice(0, 10);
 
-    // Debug logs to diagnose misclassification (remove in production)
-    console.log('SELECTED_CAP', selectedCap);
-    console.log('FILTERED_GAINERS', (filteredTopGainers || []).map(i => ({ symbol: i.symbol, cap: i.cap_segment, change: num(i.change_percent) })));
-    console.log('FILTERED_LOSERS', (filteredTopLosers || []).map(i => ({ symbol: i.symbol, cap: i.cap_segment, change: num(i.change_percent) })));
-    const [indexLoading, setIndexLoading] = useState(false);
-
     const loadIndexData = async () => {
         setIndexError('');
         setIndexLoading(true);
@@ -57,139 +64,277 @@ function Dashboard() {
         }
     };
 
-    useEffect(() => {
-        const loadTopMovers = async () => {
-            setMarketError('');
-            try {
-                const response = await getTopMovers();
-                // Log the raw movers payload for debugging misclassification issues
-                console.log('TOP_MOVERS_PAYLOAD', response.data);
-                setTopMovers(response.data || { top_active: [], most_gained: [], most_lost: [] });
-            } catch {
-                setMarketError('Unable to load live market movers.');
-            }
-        };
+    const loadTopMovers = async () => {
+        setMarketError('');
+        try {
+            const response = await getTopMovers();
+            setTopMovers(response.data || { top_active: [], most_gained: [], most_lost: [] });
+        } catch {
+            setMarketError('Unable to load live market movers.');
+        }
+    };
 
+    const handleRefreshAll = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([loadTopMovers(), loadIndexData()]);
+            setLastRefreshed(new Date());
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
         loadTopMovers();
         loadIndexData();
     }, []);
+
+    // Check Indian Market Hours (09:15 AM - 03:30 PM IST, Monday - Friday)
+    const isMarketOpen = () => {
+        const day = currentTime.getDay();
+        if (day === 0 || day === 6) return false; // Weekend
+
+        // Convert to minutes since midnight
+        const mins = currentTime.getHours() * 60 + currentTime.getMinutes();
+        return mins >= (9 * 60 + 15) && mins <= (15 * 60 + 30);
+    };
+
+    const marketOpen = isMarketOpen();
+
+    const formatCurrency = (val) => {
+        if (val == null || Number.isNaN(val)) return '—';
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            maximumFractionDigits: 2,
+        }).format(val);
+    };
+
+    const formatClockTime = (date) => {
+        return date.toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+        });
+    };
+
+    const formatFullDate = (date) => {
+        return date.toLocaleDateString('en-IN', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+    };
 
     return (
         <div className="app-shell">
             <Navbar />
             <div className="dashboard-page">
-                <section className="hero-card">
+
+                {/* Hero Header Card with Live Clock & Refresh Status */}
+                <section className="hero-card dashboard-hero-card">
                     <div className="hero-copy">
-                        <p className="eyebrow">Axiomity • intelligent investing</p>
+                        <p className="eyebrow">AXIOMITY • INTELLIGENT INVESTING</p>
                         <h1>Trade with clarity.</h1>
                         <p>Review live market movers, Nifty index trends, and manage your portfolio from one premium trading workspace.</p>
                     </div>
-                    <div className="search-card">
 
+                    {/* Live Market Clock & Refresh Desk */}
+                    <div className="dashboard-clock-widget">
+                        <div className="clock-market-status-row">
+                            <div className={`market-live-pill ${marketOpen ? 'open' : 'closed'}`}>
+                                <span className={`live-pulse-dot ${marketOpen ? 'pulse' : ''}`}></span>
+                                <span>{marketOpen ? 'NSE/BSE MARKET OPEN' : 'NSE/BSE MARKET CLOSED'}</span>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="dashboard-refresh-btn"
+                                onClick={handleRefreshAll}
+                                disabled={refreshing || indexLoading}
+                                title="Refresh live market feeds"
+                            >
+                                <span className={`refresh-icon ${refreshing ? 'spinning' : ''}`}>↺</span>
+                                <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+                            </button>
+                        </div>
+
+                        <div className="clock-time-display">
+                            <div className="clock-main-time">
+                                <span className="clock-time-mono">{formatClockTime(currentTime)}</span>
+                                <span className="clock-tz-badge">IST</span>
+                            </div>
+                            <div className="clock-date-sub">
+                                {formatFullDate(currentTime)}
+                            </div>
+                        </div>
+
+                        <div className="clock-last-refreshed-bar">
+                            <span className="refreshed-label">Last Refreshed:</span>
+                            <strong className="refreshed-val-mono">{formatClockTime(lastRefreshed)}</strong>
+                        </div>
                     </div>
                 </section>
 
-                {error && <div className="status error">{error}</div>}
                 {marketError && <div className="status error">{marketError}</div>}
                 {indexError && <div className="status error">{indexError}</div>}
 
+                {/* Dual Index Benchmark Charts Grid */}
                 <section className="index-graphs-grid">
+                    {/* Nifty 50 Card */}
                     <div className="index-card">
                         <div className="card-header">
                             <div>
-                                <p className="eyebrow">Nifty 50</p>
+                                <p className="eyebrow">NIFTY 50</p>
                                 <h2>Market benchmark</h2>
                             </div>
                         </div>
                         {indexLoading ? (
-                            <p>Loading Nifty 50 chart…</p>
+                            <div style={{ height: '360px', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                                Loading Nifty 50 chart…
+                            </div>
                         ) : nifty50Data ? (
                             <StockChart data={nifty50Data} />
                         ) : (
-                            <p className="muted">Nifty 50 data is not available.</p>
+                            <p style={{ color: '#94a3b8', padding: '24px 0', textAlign: 'center' }}>
+                                Nifty 50 data is temporarily unavailable.
+                            </p>
                         )}
                     </div>
 
+                    {/* Nifty Bank Card */}
                     <div className="index-card">
                         <div className="card-header">
                             <div>
-                                <p className="eyebrow">Nifty Bank</p>
+                                <p className="eyebrow">NIFTY BANK</p>
                                 <h2>Banking index</h2>
                             </div>
                         </div>
                         {indexLoading ? (
-                            <p>Loading Bank Nifty chart…</p>
+                            <div style={{ height: '360px', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                                Loading Bank Nifty chart…
+                            </div>
                         ) : bankNiftyData ? (
                             <StockChart data={bankNiftyData} />
                         ) : (
-                            <p className="muted">Bank Nifty data is not available.</p>
+                            <p style={{ color: '#94a3b8', padding: '24px 0', textAlign: 'center' }}>
+                                Bank Nifty data is temporarily unavailable.
+                            </p>
                         )}
                     </div>
                 </section>
 
+                {/* Centered Cap Selector Pill Bar */}
                 <section className="top-movers-filter">
                     <div className="cap-selector">
-                        {['all', 'large', 'mid', 'small'].map((cap) => (
+                        {[
+                            { key: 'all', label: 'All' },
+                            { key: 'large', label: 'Large Cap' },
+                            { key: 'mid', label: 'Mid Cap' },
+                            { key: 'small', label: 'Small Cap' },
+                        ].map((cap) => (
                             <button
-                                key={cap}
+                                key={cap.key}
                                 type="button"
-                                className={`cap-button ${selectedCap === cap ? 'active' : ''}`}
-                                onClick={() => setSelectedCap(cap)}
+                                className={`cap-button ${selectedCap === cap.key ? 'active' : ''}`}
+                                onClick={() => setSelectedCap(cap.key)}
                             >
-                                {cap === 'all' ? 'All' : cap === 'large' ? 'Large Cap' : cap === 'mid' ? 'Mid Cap' : 'Small Cap'}
+                                {cap.label}
                             </button>
                         ))}
                     </div>
                 </section>
 
+                {/* Dual Column Movers Grid */}
                 <section className="top-movers-grid">
+                    {/* Top Gainers */}
                     <div className="movers-card">
                         <div className="card-header">
                             <div>
-                                <p className="eyebrow">Top Gainers</p>
+                                <p className="eyebrow">TOP GAINERS</p>
                             </div>
                         </div>
+
                         <div className="movers-list">
-                            {filteredTopGainers.map((item) => (
-                                <div key={`${item.symbol}-${item.exchange || item.currency || 'x'}`} className="mover-row">
-                                    <div>
-                                        <strong>{item.display_name || `${item.name} (${item.symbol})`}</strong>
-                                        <p className="muted">
-                                            {item.exchange || item.currency} · {(item.cap_segment || 'unknown').toUpperCase()}
-                                        </p>
-                                    </div>
-                                    <div className="mover-value">
-                                        <span className="positive">₹{Math.abs(num(item.change)).toFixed(2)} ({Math.abs(num(item.change_percent)).toFixed(2)}%)</span>
-                                        <span>₹{num(item.current_price).toFixed(2)}</span>
-                                    </div>
+                            {filteredTopGainers.length === 0 ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
+                                    No gainers found for this cap today.
                                 </div>
-                            ))}
+                            ) : (
+                                filteredTopGainers.map((item) => {
+                                    const chgPct = num(item.change_percent);
+                                    const chgAmt = num(item.change);
+                                    const ltp = num(item.current_price);
+                                    return (
+                                        <Link
+                                            to={`/analysis?symbol=${item.symbol}`}
+                                            key={`${item.symbol}-${item.exchange || 'x'}`}
+                                            className="mover-row"
+                                            title={`Click to analyze ${item.symbol}`}
+                                        >
+                                            <div>
+                                                <strong>{item.name || item.display_name || item.symbol} ({item.symbol})</strong>
+                                                <p className="muted">
+                                                    {item.exchange || 'NSE'} · {(item.cap_segment || 'MID').toUpperCase()}
+                                                </p>
+                                            </div>
+
+                                            <div className="mover-value">
+                                                <span className="positive">
+                                                    ▲ {formatCurrency(Math.abs(chgAmt))} (+{chgPct.toFixed(2)}%)
+                                                </span>
+                                                <span>{formatCurrency(ltp)}</span>
+                                            </div>
+                                        </Link>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
+
+                    {/* Top Losers */}
                     <div className="movers-card">
                         <div className="card-header">
                             <div>
-                                <p className="eyebrow">Top Losers</p>
+                                <p className="eyebrow">TOP LOSERS</p>
                             </div>
                         </div>
+
                         <div className="movers-list">
                             {filteredTopLosers.length === 0 ? (
-                                <div className="portfolio-empty">No losers found for this cap today.</div>
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
+                                    No losers found for this cap today.
+                                </div>
                             ) : (
-                                filteredTopLosers.map((item) => (
-                                    <div key={`${item.symbol}-${item.exchange || item.currency || 'x'}`} className="mover-row">
-                                        <div>
-                                            <strong>{item.display_name || `${item.name} (${item.symbol})`}</strong>
-                                            <p className="muted">
-                                                {item.exchange || item.currency} · {item.cap_segment.toUpperCase()}
-                                            </p>
-                                        </div>
-                                        <div className="mover-value">
-                                            <span className="negative">₹{Math.abs(num(item.change)).toFixed(2)} ({Math.abs(num(item.change_percent)).toFixed(2)}%)</span>
-                                            <span>₹{num(item.current_price).toFixed(2)}</span>
-                                        </div>
-                                    </div>
-                                ))
+                                filteredTopLosers.map((item) => {
+                                    const chgPct = num(item.change_percent);
+                                    const chgAmt = num(item.change);
+                                    const ltp = num(item.current_price);
+                                    return (
+                                        <Link
+                                            to={`/analysis?symbol=${item.symbol}`}
+                                            key={`${item.symbol}-${item.exchange || 'x'}`}
+                                            className="mover-row"
+                                            title={`Click to analyze ${item.symbol}`}
+                                        >
+                                            <div>
+                                                <strong>{item.name || item.display_name || item.symbol} ({item.symbol})</strong>
+                                                <p className="muted">
+                                                    {item.exchange || 'NSE'} · {(item.cap_segment || 'MID').toUpperCase()}
+                                                </p>
+                                            </div>
+
+                                            <div className="mover-value">
+                                                <span className="negative">
+                                                    ▼ {formatCurrency(Math.abs(chgAmt))} ({chgPct.toFixed(2)}%)
+                                                </span>
+                                                <span>{formatCurrency(ltp)}</span>
+                                            </div>
+                                        </Link>
+                                    );
+                                })
                             )}
                         </div>
                     </div>

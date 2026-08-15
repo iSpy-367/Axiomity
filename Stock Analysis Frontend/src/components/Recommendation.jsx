@@ -1,43 +1,162 @@
 import React from 'react';
 
 function Recommendation({ data = {} }) {
-    const rec = data.recommendation || 'Hold';
+    const currentPrice = Number(data.current_price || 0);
+    const rsi = data.rsi != null ? Number(data.rsi) : null;
+    const macd = data.macd != null ? Number(data.macd) : null;
+    const ma20 = data.ma20 != null ? Number(data.ma20) : null;
+    const ma50 = data.ma50 != null ? Number(data.ma50) : null;
+    const fiftyDayMa = data.fundamentals?.fifty_day_ma != null ? Number(data.fundamentals.fifty_day_ma) : null;
+    const twoHundredDayMa = data.fundamentals?.two_hundred_day_ma != null ? Number(data.fundamentals.two_hundred_day_ma) : null;
+
+    // Evaluate individual indicator verdicts
+    const signals = [];
+
+    // 1. RSI(14)
+    if (rsi != null) {
+        if (rsi < 35) {
+            signals.push({ name: 'RSI (14)', value: rsi.toFixed(2), stance: 'Bullish', detail: 'Oversold (<35)', score: 1 });
+        } else if (rsi > 65) {
+            signals.push({ name: 'RSI (14)', value: rsi.toFixed(2), stance: 'Bearish', detail: 'Overbought (>65)', score: -1 });
+        } else {
+            signals.push({ name: 'RSI (14)', value: rsi.toFixed(2), stance: 'Neutral', detail: 'Normal (35-65)', score: 0 });
+        }
+    }
+
+    // 2. MACD (12, 26)
+    if (macd != null) {
+        if (macd > 0.5) {
+            signals.push({ name: 'MACD (12,26)', value: (macd >= 0 ? '+' : '') + macd.toFixed(2), stance: 'Bullish', detail: 'Positive Momentum', score: 1 });
+        } else if (macd < -0.5) {
+            signals.push({ name: 'MACD (12,26)', value: macd.toFixed(2), stance: 'Bearish', detail: 'Negative Momentum', score: -1 });
+        } else {
+            signals.push({ name: 'MACD (12,26)', value: macd.toFixed(2), stance: 'Neutral', detail: 'Flat Momentum', score: 0 });
+        }
+    }
+
+    // 3. MA20 (Short-Term Trend)
+    if (ma20 != null && currentPrice > 0) {
+        const diff20 = ((currentPrice - ma20) / ma20) * 100;
+        if (diff20 > 0.3) {
+            signals.push({ name: 'Price vs MA20', value: `₹${ma20.toFixed(2)}`, stance: 'Bullish', detail: `Above (+${diff20.toFixed(1)}%)`, score: 1 });
+        } else if (diff20 < -0.3) {
+            signals.push({ name: 'Price vs MA20', value: `₹${ma20.toFixed(2)}`, stance: 'Bearish', detail: `Below (${diff20.toFixed(1)}%)`, score: -1 });
+        } else {
+            signals.push({ name: 'Price vs MA20', value: `₹${ma20.toFixed(2)}`, stance: 'Neutral', detail: 'At MA20 level', score: 0 });
+        }
+    }
+
+    // 4. MA50 (Intermediate Trend)
+    if (ma50 != null && currentPrice > 0) {
+        const diff50 = ((currentPrice - ma50) / ma50) * 100;
+        if (diff50 > 0.5) {
+            signals.push({ name: 'Price vs MA50', value: `₹${ma50.toFixed(2)}`, stance: 'Bullish', detail: `Above (+${diff50.toFixed(1)}%)`, score: 1 });
+        } else if (diff50 < -0.5) {
+            signals.push({ name: 'Price vs MA50', value: `₹${ma50.toFixed(2)}`, stance: 'Bearish', detail: `Below (${diff50.toFixed(1)}%)`, score: -1 });
+        } else {
+            signals.push({ name: 'Price vs MA50', value: `₹${ma50.toFixed(2)}`, stance: 'Neutral', detail: 'At MA50 level', score: 0 });
+        }
+    }
+
+    // 5. 50/200 DMA Cross (Long-Term Structural Trend)
+    let dmaCross = null;
+    if (fiftyDayMa != null && twoHundredDayMa != null) {
+        const isGolden = fiftyDayMa >= twoHundredDayMa;
+        dmaCross = isGolden ? 'Golden Cross' : 'Death Cross';
+        signals.push({
+            name: '50/200 DMA Trend',
+            value: isGolden ? 'Golden Cross' : 'Death Cross',
+            stance: isGolden ? 'Bullish' : 'Bearish',
+            detail: `50DMA: ₹${fiftyDayMa.toFixed(1)} | 200DMA: ₹${twoHundredDayMa.toFixed(1)}`,
+            score: isGolden ? 1 : -1,
+        });
+    }
+
+    // Aggregate Agreement & Divergence Analysis
+    const totalSignals = signals.length || 1;
+    const bullCount = signals.filter(s => s.stance === 'Bullish').length;
+    const bearCount = signals.filter(s => s.stance === 'Bearish').length;
+    const neutralCount = signals.filter(s => s.stance === 'Neutral').length;
+
+    let stance = 'Neutral';
+    let stanceType = 'neutral';
+    let agreementPercentage = 50;
+
+    if (bullCount >= bearCount + 2 || (bullCount >= 3 && bearCount === 0)) {
+        stance = 'Buy';
+        stanceType = 'buy';
+        agreementPercentage = Math.min(95, Math.round((bullCount / totalSignals) * 100));
+    } else if (bearCount >= bullCount + 2 || (bearCount >= 3 && bullCount === 0)) {
+        stance = 'Sell';
+        stanceType = 'sell';
+        agreementPercentage = Math.min(95, Math.round((bearCount / totalSignals) * 100));
+    } else {
+        stance = 'Hold';
+        stanceType = 'hold';
+        agreementPercentage = Math.round((Math.max(bullCount, bearCount, neutralCount) / totalSignals) * 100);
+    }
+
+    // Detect Contradiction / Divergence
+    // e.g., MACD is Bullish but MA trend is Bearish / Death Cross or vice versa
+    const macdSignal = signals.find(s => s.name.startsWith('MACD'));
+    const maSignal = signals.find(s => s.name.startsWith('Price vs MA50'));
+    const isDivergent = (macdSignal && maSignal && macdSignal.stance !== 'Neutral' && maSignal.stance !== 'Neutral' && macdSignal.stance !== maSignal.stance) ||
+        (macdSignal && dmaCross && macdSignal.stance === 'Bullish' && dmaCross === 'Death Cross') ||
+        (macdSignal && dmaCross && macdSignal.stance === 'Bearish' && dmaCross === 'Golden Cross');
 
     return (
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '20px' }}>
-            <div className="recommendation-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <h3 className="eyebrow" style={{ margin: 0 }}>Analysis Result</h3>
-                <div className={`rec-badge ${rec.toLowerCase()}`} style={{ margin: 0 }}>
-                    {rec.toUpperCase()}
+        <div className="fintech-card signal-scorecard-card">
+            {/* Header: Stance Badge + Derived Agreement Confidence */}
+            <div className="scorecard-header">
+                <div>
+                    <span className="fintech-eyebrow">COMPOSITE SIGNAL SCORECARD</span>
+                    <h3 className="scorecard-title">Technical Consensus</h3>
+                </div>
+                <div className={`stance-badge ${stanceType}`}>
+                    {stance.toUpperCase()}
                 </div>
             </div>
 
-            <div className="technical-grade-box" style={{ margin: '14px 0', border: 'none', background: '#f8fafc', padding: '14px 16px' }}>
-                <div className="confidence-wrapper">
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475467' }}>Model Confidence: {data.confidence ?? '—'}%</span>
-                    <div className="progress-bar-bg" style={{ background: '#e2e8f0' }}>
-                        <div className="progress-bar-fill" style={{ width: `${data.confidence ?? 50}%` }}></div>
+            {/* Dynamic Agreement Confidence Gauge */}
+            <div className="confidence-meter-box">
+                <div className="meter-label-row">
+                    <span className="meter-label">Indicator Agreement</span>
+                    <strong className="meter-val">{bullCount} Bull / {bearCount} Bear / {neutralCount} Neutral ({agreementPercentage}%)</strong>
+                </div>
+                <div className="agreement-bar-segmented">
+                    <div className="bar-seg bull-seg" style={{ width: `${(bullCount / totalSignals) * 100}%` }} title={`${bullCount} Bullish`}></div>
+                    <div className="bar-seg neutral-seg" style={{ width: `${(neutralCount / totalSignals) * 100}%` }} title={`${neutralCount} Neutral`}></div>
+                    <div className="bar-seg bear-seg" style={{ width: `${(bearCount / totalSignals) * 100}%` }} title={`${bearCount} Bearish`}></div>
+                </div>
+            </div>
+
+            {/* Divergence / Contradiction Alert Ribbon */}
+            {isDivergent && (
+                <div className="divergence-warning-ribbon">
+                    <div className="ribbon-icon">⚠️</div>
+                    <div className="ribbon-content">
+                        <strong>Divergence Detected</strong>
+                        <p>Momentum (MACD) and structural trend (Moving Averages) disagree.</p>
                     </div>
                 </div>
-            </div>
+            )}
 
-            <div className="metric-list" style={{ marginTop: '14px', border: 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.88rem', fontWeight: 500 }}>RSI (14)</span>
-                    <strong style={{ color: '#0f172a', fontSize: '0.9rem', fontWeight: 700 }}>{data.rsi ?? '—'}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.88rem', fontWeight: 500 }}>MACD</span>
-                    <strong style={{ color: '#0f172a', fontSize: '0.9rem', fontWeight: 700 }}>{data.macd ?? '—'}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.88rem', fontWeight: 500 }}>MA20 Trend</span>
-                    <strong style={{ color: '#0f172a', fontSize: '0.9rem', fontWeight: 700 }}>{data.ma20 ?? '—'}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: 'none' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.88rem', fontWeight: 500 }}>MA50 Trend</span>
-                    <strong style={{ color: '#0f172a', fontSize: '0.9rem', fontWeight: 700 }}>{data.ma50 ?? '—'}</strong>
-                </div>
+            {/* Individual Indicator Mini-Verdicts */}
+            <div className="scorecard-breakdown-list">
+                {signals.map((sig, idx) => (
+                    <div key={idx} className="scorecard-row">
+                        <div className="scorecard-metric-info">
+                            <span className="metric-name">{sig.name}</span>
+                            <span className="metric-detail-muted">{sig.detail}</span>
+                        </div>
+                        <div className="scorecard-metric-result">
+                            <span className="metric-val-mono">{sig.value}</span>
+                            <span className={`signal-chip ${sig.stance.toLowerCase()}`}>
+                                {sig.stance === 'Bullish' ? '▲ Bullish' : sig.stance === 'Bearish' ? '▼ Bearish' : '● Neutral'}
+                            </span>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

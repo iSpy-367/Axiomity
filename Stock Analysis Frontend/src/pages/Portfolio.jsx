@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { getPortfolio, deletePortfolioItem, addPortfolioItem } from '../services/api';
+import { getPortfolio, deletePortfolioItem, addPortfolioItem, searchStocks } from '../services/api';
+
+const ALLOC_COLORS = [
+    '#2563eb', '#10b981', '#f59e0b', '#8b5cf6',
+    '#06b6d4', '#ec4899', '#f97316', '#64748b'
+];
 
 function Portfolio() {
     const [portfolio, setPortfolio] = useState([]);
@@ -12,6 +18,11 @@ function Portfolio() {
     const [scriptBuyPrice, setScriptBuyPrice] = useState('');
     const [filterQuery, setFilterQuery] = useState('');
     const [expandedItemId, setExpandedItemId] = useState(null);
+
+    // Typeahead state for Quick Entry
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const symbolInputRef = useRef(null);
 
     const totalInvested = portfolio.reduce((sum, item) => sum + (item.buy_price || 0) * item.quantity, 0);
     const totalCurrent = portfolio.reduce((sum, item) => sum + (item.current_price || 0) * item.quantity, 0);
@@ -30,7 +41,7 @@ function Portfolio() {
     const totalPrevCurrent = totalCurrent - totalDayChange;
     const totalDayChangePercent = totalPrevCurrent > 0 ? (totalDayChange / totalPrevCurrent) * 100 : 0;
 
-    const filteredPortfolio = portfolio.filter(item => 
+    const filteredPortfolio = portfolio.filter(item =>
         item.symbol.toLowerCase().includes(filterQuery.toLowerCase()) ||
         (item.display_name && item.display_name.toLowerCase().includes(filterQuery.toLowerCase()))
     );
@@ -42,7 +53,7 @@ function Portfolio() {
             const response = await getPortfolio();
             setPortfolio(response.data || []);
         } catch (err) {
-            setError('Unable to load portfolio.');
+            setError('Unable to load portfolio data.');
         } finally {
             setLoading(false);
         }
@@ -52,15 +63,43 @@ function Portfolio() {
         loadPortfolio();
     }, []);
 
+    // Debounced typeahead search for Quick Entry
+    useEffect(() => {
+        const q = scriptSymbol.trim();
+        if (q.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                const res = await searchStocks(q);
+                if (res.data?.results) {
+                    setSuggestions(res.data.results.slice(0, 5));
+                    setShowSuggestions(true);
+                }
+            } catch {
+                setSuggestions([]);
+            }
+        }, 220);
+
+        return () => clearTimeout(timer);
+    }, [scriptSymbol]);
+
     const handleDelete = async (id) => {
         setMessage('');
         try {
             await deletePortfolioItem(id);
-            setMessage('Portfolio entry removed successfully.');
+            setMessage('Position removed successfully.');
             await loadPortfolio();
         } catch {
             setError('Unable to remove this position right now.');
         }
+    };
+
+    const handleSelectSuggestion = (item) => {
+        setScriptSymbol(item.symbol);
+        setShowSuggestions(false);
     };
 
     const formatCurrency = (value) => {
@@ -75,240 +114,318 @@ function Portfolio() {
     return (
         <div className="app-shell">
             <Navbar />
-            <div className="dashboard-page portfolio-page" style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
-                
-                {/* Title and Open Positions count */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                    <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Portfolio</h1>
-                    <div style={{ background: '#edf4ff', color: '#2357d8', fontSize: '0.8rem', fontWeight: 700, padding: '6px 12px', borderRadius: '20px' }}>
-                        {portfolio.length} Positions
+            <div className="portfolio-page-container">
+
+                {/* Header Strip */}
+                <div className="portfolio-header-strip">
+                    <div>
+                        <span className="fintech-eyebrow">EQUITY HOLDINGS</span>
+                        <h1>Portfolio & Capital Allocation</h1>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span className="market-sync-tag">
+                            {portfolio.length} {portfolio.length === 1 ? 'Position' : 'Positions'} Active
+                        </span>
                     </div>
                 </div>
 
                 {message && <div className="status success" style={{ marginBottom: '20px' }}>{message}</div>}
                 {error && <div className="status error" style={{ marginBottom: '20px' }}>{error}</div>}
 
-                {/* Two-Column Responsive Layout */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(0, 1.2fr)', gap: '24px', alignItems: 'start' }} className="portfolio-content-grid">
-                    
-                    {/* Left Column: Summary and Holdings */}
-                    <div>
-                        {/* Summary Card (Kite Holdings Style) */}
-                        <div style={{ background: '#ffffff', border: '1px solid #eef2f6', borderRadius: '16px', padding: '20px', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.04)', marginBottom: '20px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', paddingBottom: '16px', borderBottom: '1px solid #f1f3f6' }}>
-                                <div>
-                                    <span style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>Invested</span>
-                                    <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>{formatCurrency(totalInvested)}</span>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    <span style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>Current Value</span>
-                                    <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>{formatCurrency(totalCurrent)}</span>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '16px' }}>
-                                <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Total P&L</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <strong style={{ fontSize: '1.25rem', color: totalPnl >= 0 ? '#10b981' : '#ef4444', fontWeight: 800 }}>
-                                        {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
-                                    </strong>
-                                    <span style={{ 
-                                        fontSize: '0.76rem', 
-                                        fontWeight: 800, 
-                                        padding: '4px 8px', 
-                                        borderRadius: '8px', 
-                                        background: totalPnl >= 0 ? '#ecfdf5' : '#fff1f2', 
-                                        color: totalPnl >= 0 ? '#10b981' : '#ef4444' 
-                                    }}>
-                                        {totalInvested ? `${totalPnl >= 0 ? '+' : ''}${totalPnlPercent.toFixed(2)}%` : '0.00%'}
-                                    </span>
-                                </div>
-                            </div>
+                {/* 4 Summary Stat Cards Grid */}
+                <section className="portfolio-stats-grid">
+                    {/* Invested */}
+                    <div className="portfolio-stat-card">
+                        <span className="stat-card-label">Total Invested</span>
+                        <div className="stat-card-value">{formatCurrency(totalInvested)}</div>
+                        <div className="stat-card-delta-row" style={{ color: '#64748b' }}>
+                            Base capital deployed
                         </div>
+                    </div>
 
-                        {/* Kite Toolbar */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: '#f8fafc', padding: '10px 14px', borderRadius: '14px', border: '1px solid #eef2f6' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '10px', maxWidth: '240px', flex: 1 }}>
+                    {/* Current Value */}
+                    <div className="portfolio-stat-card">
+                        <span className="stat-card-label">Current Value</span>
+                        <div className="stat-card-value">{formatCurrency(totalCurrent)}</div>
+                        <div className="stat-card-delta-row" style={{ color: '#64748b' }}>
+                            Market evaluation
+                        </div>
+                    </div>
+
+                    {/* Total P&L */}
+                    <div className="portfolio-stat-card">
+                        <span className="stat-card-label">Overall Profit / Loss</span>
+                        <div className="stat-card-value" style={{ color: totalPnl >= 0 ? '#10b981' : '#ef4444' }}>
+                            {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+                        </div>
+                        <div className="stat-card-delta-row">
+                            <span className={`mover-pct-badge ${totalPnl >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
+                                {totalPnl >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
+                            </span>
+                            <span style={{ color: '#64748b', fontSize: '0.76rem' }}>All-time returns</span>
+                        </div>
+                    </div>
+
+                    {/* Day's P&L */}
+                    <div className="portfolio-stat-card">
+                        <span className="stat-card-label">Day's Profit / Loss</span>
+                        <div className="stat-card-value" style={{ color: totalDayChange >= 0 ? '#10b981' : '#ef4444' }}>
+                            {totalDayChange >= 0 ? '+' : ''}{formatCurrency(totalDayChange)}
+                        </div>
+                        <div className="stat-card-delta-row">
+                            <span className={`mover-pct-badge ${totalDayChange >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
+                                {totalDayChange >= 0 ? '+' : ''}{totalDayChangePercent.toFixed(2)}%
+                            </span>
+                            <span style={{ color: '#64748b', fontSize: '0.76rem' }}>Today's movement</span>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Main Content Layout Grid */}
+                <div className="portfolio-layout-grid">
+
+                    {/* Left Column: Holdings & Empty State */}
+                    <div>
+                        <div className="portfolio-holdings-card">
+                            <div className="holdings-head-toolbar">
+                                <div>
+                                    <span className="fintech-eyebrow">ACTIVE ASSETS</span>
+                                    <h2 style={{ margin: '2px 0 0', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                                        Holdings Book
+                                    </h2>
+                                </div>
+
+                                <div className="holding-search-box">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                     </svg>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search holdings..." 
+                                    <input
+                                        type="text"
+                                        placeholder="Filter holdings..."
                                         value={filterQuery}
                                         onChange={(e) => setFilterQuery(e.target.value)}
-                                        style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.85rem', color: '#1e293b', width: '100%', padding: 0 }}
                                     />
                                 </div>
-                                <button title="Filters" style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: '4px' }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="4" y1="21" x2="4" y2="14"></line>
-                                        <line x1="4" y1="10" x2="4" y2="3"></line>
-                                        <line x1="12" y1="21" x2="12" y2="12"></line>
-                                        <line x1="12" y1="8" x2="12" y2="3"></line>
-                                        <line x1="20" y1="21" x2="20" y2="16"></line>
-                                        <line x1="20" y1="12" x2="20" y2="3"></line>
-                                        <line x1="1" y1="14" x2="7" y2="14"></line>
-                                        <line x1="9" y1="8" x2="15" y2="8"></line>
-                                        <line x1="17" y1="16" x2="23" y2="16"></line>
-                                    </svg>
-                                </button>
-                                <button title="Analytical view" style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: '4px' }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                    </svg>
-                                </button>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.82rem', fontWeight: 700, color: '#2357d8' }} className="kite-links">
-                                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                        <circle cx="9" cy="7" r="4"></circle>
-                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                                    </svg>
-                                    Family
-                                </span>
-                                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                                    <span style={{ width: '6px', height: '6px', background: '#2357d8', borderRadius: '50%', display: 'inline-block' }}></span>
-                                    Analytics
-                                </span>
-                            </div>
-                        </div>
 
-                        {/* Holdings List */}
-                        <div style={{ background: '#ffffff', border: '1px solid #eef2f6', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 18px rgba(15, 23, 42, 0.02)' }}>
                             {loading ? (
-                                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading your portfolio…</div>
+                                <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
+                                    Loading your portfolio positions…
+                                </div>
+                            ) : portfolio.length === 0 ? (
+                                /* Intentional Fintech Empty State */
+                                <div className="empty-state-fintech">
+                                    <div className="empty-icon-circle">💼</div>
+                                    <h3>No Open Positions Yet</h3>
+                                    <p>
+                                        Your portfolio is currently empty. Add your first stock position using the Quick Position Entry form to track real-time P&L and technical analytics.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="primary-button"
+                                        onClick={() => symbolInputRef.current?.focus()}
+                                        style={{ padding: '10px 22px', fontSize: '0.85rem', fontWeight: 800, borderRadius: '8px' }}
+                                    >
+                                        + Add First Position
+                                    </button>
+                                </div>
                             ) : filteredPortfolio.length === 0 ? (
-                                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                                    {filterQuery ? 'No matching assets found.' : 'Your portfolio is empty. Add a position to get started.'}
+                                <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+                                    No holdings match "{filterQuery}".
                                 </div>
                             ) : (
-                                filteredPortfolio.map((item) => {
-                                    const invested = (item.buy_price || 0) * item.quantity;
-                                    const currentValue = (item.current_price || 0) * item.quantity;
-                                    const pnl = currentValue - invested;
-                                    const pnlPercent = invested ? (pnl / invested) * 100 : 0;
-                                    const isExpanded = expandedItemId === item.id;
-                                    return (
-                                        <div key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            {/* Summary Row */}
-                                            <div 
-                                                style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', cursor: 'pointer', background: isExpanded ? '#f8fbff' : '#ffffff', transition: 'background 0.2s' }}
-                                                onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                                                className="kite-holding-row"
-                                            >
-                                                {/* Left section */}
-                                                <div>
-                                                    <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, marginBottom: '2px' }}>
-                                                        Qty. <strong style={{ color: '#0f172a' }}>{item.quantity}</strong> · Avg. <strong style={{ color: '#0f172a' }}>{formatCurrency(item.buy_price)}</strong>
+                                <div className="holdings-list-shell">
+                                    {filteredPortfolio.map((item) => {
+                                        const invested = (item.buy_price || 0) * item.quantity;
+                                        const currentValue = (item.current_price || 0) * item.quantity;
+                                        const pnl = currentValue - invested;
+                                        const pnlPercent = invested ? (pnl / invested) * 100 : 0;
+                                        const isExpanded = expandedItemId === item.id;
+                                        return (
+                                            <div key={item.id} className="holding-card-item">
+                                                {/* Summary Row */}
+                                                <div
+                                                    className="holding-summary-head"
+                                                    onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                                                    title="Click to view details & actions"
+                                                >
+                                                    <div className="holding-left-col">
+                                                        <div className="holding-sym-row">
+                                                            <span className="holding-sym-title">{item.symbol}</span>
+                                                            <span className="typeahead-badge nse">{item.exchange || 'NSE'}</span>
+                                                        </div>
+                                                        <div className="holding-qty-sub">
+                                                            Qty: <strong>{item.quantity}</strong> · Avg: <strong>{formatCurrency(item.buy_price)}</strong> · Invested: <strong>{formatCurrency(invested)}</strong>
+                                                        </div>
                                                     </div>
-                                                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{item.symbol}</div>
-                                                    <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
-                                                        Invested <strong style={{ color: '#475467' }}>{formatCurrency(invested)}</strong>
-                                                    </div>
-                                                </div>
-                                                {/* Right section */}
-                                                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                                                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: pnl >= 0 ? '#10b981' : '#ef4444' }}>
-                                                        {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
-                                                    </span>
-                                                    <span style={{ fontSize: '0.96rem', fontWeight: 800, color: pnl >= 0 ? '#10b981' : '#ef4444', margin: '4px 0' }}>
-                                                        {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
-                                                    </span>
-                                                    <div style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 500 }}>
-                                                        LTP <strong style={{ color: '#1e293b' }}>{formatCurrency(item.current_price)}</strong>{' '}
-                                                        <span style={{ color: item.daily_change_percent >= 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                                                            ({item.daily_change_percent >= 0 ? '+' : ''}{item.daily_change_percent?.toFixed(2)}%)
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
 
-                                            {/* Expanded Options panel */}
-                                            {isExpanded && (
-                                                <div style={{ background: '#f8fafc', padding: '12px 16px', borderTop: '1px dashed #e2e8f0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                                                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>{item.display_name || item.symbol}</span>
-                                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                                        <a href={`/analysis?symbol=${item.symbol}`} className="secondary-button" style={{ fontSize: '0.75rem', padding: '6px 12px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', borderRadius: '10px', fontWeight: 700 }}>
-                                                            Analyze Stock
-                                                        </a>
-                                                        <button 
-                                                            onClick={() => handleDelete(item.id)} 
-                                                            style={{ background: '#fff1f2', color: '#dc2626', border: '1px solid #fecdd3', padding: '6px 12px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                                                        >
-                                                            Delete Position
-                                                        </button>
+                                                    <div className="holding-right-col">
+                                                        <div className="holding-pnl-block">
+                                                            <span className={`holding-pnl-num ${pnl >= 0 ? 'up' : 'down'}`}>
+                                                                {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                                                            </span>
+                                                            <span className="holding-ltp-sub">
+                                                                LTP: {formatCurrency(item.current_price)}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`mover-pct-badge ${pnl >= 0 ? 'positive' : 'negative'}`}>
+                                                            {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
+
+                                                {/* Expanded Details & Actions Panel */}
+                                                {isExpanded && (
+                                                    <div className="holding-expanded-actions">
+                                                        <div className="holding-expanded-left">
+                                                            <span><strong>{item.display_name || item.name || item.symbol}</strong></span>
+                                                            <span>Current Value: <strong>{formatCurrency(currentValue)}</strong></span>
+                                                        </div>
+                                                        <div className="holding-expanded-btns">
+                                                            <Link
+                                                                to={`/analysis?symbol=${item.symbol}`}
+                                                                className="btn-analyze-holding"
+                                                            >
+                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                                                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                                                </svg>
+                                                                Analyze Stock
+                                                            </Link>
+                                                            <button
+                                                                type="button"
+                                                                className="btn-delete-holding"
+                                                                onClick={() => handleDelete(item.id)}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
 
-                        {/* Day's P&L Summary Block */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', background: '#f8fafc', padding: '16px 20px', borderRadius: '16px', border: '1px solid #eef2f6', boxShadow: '0 4px 12px rgba(0,0,0,0.01)' }}>
-                            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Day's P&L</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <strong style={{ fontSize: '1.05rem', color: totalDayChange >= 0 ? '#10b981' : '#ef4444', fontWeight: 800 }}>
-                                    {totalDayChange >= 0 ? '+' : ''}{formatCurrency(totalDayChange)}
-                                </strong>
-                                <span style={{ fontSize: '0.85rem', color: totalDayChange >= 0 ? '#10b981' : '#ef4444', fontWeight: 800 }}>
-                                    ({totalDayChange >= 0 ? '+' : ''}{totalDayChangePercent.toFixed(2)}%)
-                                </span>
+                        {/* Portfolio Allocation Visualizer Card */}
+                        {portfolio.length > 0 && totalCurrent > 0 && (
+                            <div className="portfolio-allocation-card">
+                                <span className="fintech-eyebrow">CAPITAL DIVERSIFICATION</span>
+                                <h3 style={{ margin: '2px 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                                    Portfolio Allocation Breakdown
+                                </h3>
+
+                                <div className="allocation-bar-segmented">
+                                    {portfolio.map((item, idx) => {
+                                        const val = (item.current_price || 0) * item.quantity;
+                                        const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
+                                        const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                className="allocation-seg-item"
+                                                style={{ width: `${pct}%`, background: color }}
+                                                title={`${item.symbol}: ${pct.toFixed(1)}% (${formatCurrency(val)})`}
+                                            />
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="allocation-legend-grid">
+                                    {portfolio.map((item, idx) => {
+                                        const val = (item.current_price || 0) * item.quantity;
+                                        const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
+                                        const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
+                                        return (
+                                            <div key={item.id} className="alloc-legend-chip">
+                                                <span className="alloc-color-dot" style={{ background: color }} />
+                                                <span><strong>{item.symbol}</strong> ({pct.toFixed(1)}%)</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
-                    {/* Right Column: Quick Entry Form */}
-                    <div style={{ background: '#ffffff', border: '1px solid #eef2f6', borderRadius: '16px', padding: '24px', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.04)' }}>
-                        <p className="eyebrow" style={{ marginBottom: '14px' }}>ADD ASSET</p>
-                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: '0 0 16px' }}>Quick Position Entry</h2>
-                        
+                    {/* Right Column: Quick Position Entry Form */}
+                    <div className="quick-entry-card">
+                        <span className="fintech-eyebrow">ORDER DESK</span>
+                        <h2 style={{ margin: '2px 0 16px', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                            Quick Position Entry
+                        </h2>
+
                         <div style={{ display: 'grid', gap: '16px' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475467', marginBottom: '6px' }}>Ticker Symbol</label>
+                            {/* Symbol with Autocomplete Dropdown */}
+                            <div style={{ position: 'relative' }}>
+                                <label className="fintech-input-label">Script Symbol</label>
                                 <input
+                                    ref={symbolInputRef}
                                     type="text"
-                                    placeholder="e.g. RELIANCE"
+                                    placeholder="e.g. RELIANCE, TCS, VBL, LTM"
                                     value={scriptSymbol}
-                                    onChange={(e) => setScriptSymbol(e.target.value)}
-                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #d7def0', background: '#ffffff', fontSize: '0.9rem', fontWeight: 600 }}
+                                    onChange={(e) => setScriptSymbol(e.target.value.toUpperCase())}
+                                    onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                                    className="fintech-form-input"
+                                    style={{ fontFamily: 'JetBrains Mono, monospace' }}
                                 />
+
+                                {showSuggestions && suggestions.length > 0 && (
+                                    <div className="typeahead-dropdown" style={{ top: '100%', left: 0, right: 0 }}>
+                                        {suggestions.map((item) => (
+                                            <div
+                                                key={item.symbol}
+                                                className="typeahead-item"
+                                                onClick={() => handleSelectSuggestion(item)}
+                                            >
+                                                <div className="typeahead-sym-row">
+                                                    <span className="typeahead-sym">{item.symbol}</span>
+                                                    <span className={`typeahead-badge ${item.is_nse ? 'nse' : 'bse'}`}>
+                                                        {item.exchange}
+                                                    </span>
+                                                </div>
+                                                <div className="typeahead-name">{item.name}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            
+
+                            {/* Quantity and Buy Price Inputs */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px' }}>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475467', marginBottom: '6px' }}>Quantity</label>
+                                    <label className="fintech-input-label">Quantity</label>
                                     <input
                                         type="number"
                                         min="1"
                                         value={scriptQty}
                                         onChange={(e) => setScriptQty(Number(e.target.value))}
-                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #d7def0', background: '#ffffff', fontSize: '0.9rem', fontWeight: 600 }}
+                                        className="fintech-form-input"
+                                        style={{ fontFamily: 'JetBrains Mono, monospace' }}
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475467', marginBottom: '6px' }}>Buy Price (₹)</label>
+                                    <label className="fintech-input-label">Buy Price (₹)</label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         placeholder="0.00"
                                         value={scriptBuyPrice}
                                         onChange={(e) => setScriptBuyPrice(e.target.value)}
-                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #d7def0', background: '#ffffff', fontSize: '0.9rem', fontWeight: 600 }}
+                                        className="fintech-form-input"
+                                        style={{ fontFamily: 'JetBrains Mono, monospace' }}
                                     />
                                 </div>
                             </div>
 
-                            <button 
-                                type="button" 
-                                className="primary-button" 
+                            {/* Submit Button */}
+                            <button
+                                type="button"
+                                className="btn-add-position"
                                 onClick={async () => {
                                     setMessage('');
                                     setError('');
@@ -318,7 +435,7 @@ function Portfolio() {
                                     }
                                     try {
                                         await addPortfolioItem({
-                                            symbol: scriptSymbol.trim(),
+                                            symbol: scriptSymbol.trim().toUpperCase(),
                                             quantity: Number(scriptQty),
                                             buy_price: Number(scriptBuyPrice),
                                         });
@@ -331,9 +448,8 @@ function Portfolio() {
                                         setError(err.response?.data?.symbol || err.response?.data?.detail || 'Unable to add this script.');
                                     }
                                 }}
-                                style={{ padding: '12px 24px', borderRadius: '10px', fontWeight: 800, marginTop: '8px', cursor: 'pointer', width: '100%' }}
                             >
-                                Add Position
+                                + Add Position
                             </button>
                         </div>
                     </div>
@@ -345,3 +461,4 @@ function Portfolio() {
 }
 
 export default Portfolio;
+

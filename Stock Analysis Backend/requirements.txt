@@ -7,3 +7,107 @@ yfinance>=0.2
 pandas>=2.0
 numpy>=1.24
 scikit-learn>=1.3
+
+| Why Django + DRF | Reasoning |
+|---|---|
+| **Maturity & Security** | Django is battle-tested, with built-in protections against SQL injection, XSS, CSRF, and clickjacking — critical for a financial application handling user data. |
+| **Built-in Admin Interface** | `admin.site.urls` gives us a free database management panel (`/admin/`) to verify Stock, Portfolio, and User records directly — no custom CRUD needed for development. |
+| **DRF for REST APIs** | The project needs clean JSON APIs (`/api/stocks/`, `/api/users/`, `/api/portfolio/`). DRF provides serializers, authentication classes, and `APIView`/`ListCreateAPIView` abstractions that cut boilerplate. |
+| **ORM (Object-Relational Mapper)** | Defining `Stock`, `StockHistory`, `Prediction`, `Portfolio` as Django models means zero raw SQL — migrations are auto-generated and DB-agnostic (switchable between PostgreSQL and SQLite). |
+| **Academic familiarity** | Python + Django are standard in college curricula, making the codebase easy to explain and defend. |
+
+---
+
+### 2. Authentication — **djangorestframework-simplejwt**
+> [requirements.txt line 3](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/requirements.txt#L3-L3)
+
+- **Stateless JWT** (JSON Web Token) is ideal for a React SPA because the frontend stores tokens in `localStorage` — no server-side sessions to maintain.
+- **Access + Refresh token pair**: Short-lived access token (1h) for security, longer-lived refresh token (7d) so users don't re-login every hour. The Axios interceptor in [api.js](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/src/services/api.js) auto-refreshes on 401.
+- **`IsAuthenticated` permission class** on portfolio and profile views ensures endpoints can't be hit without a valid token.
+
+---
+
+### 3. Cross-Origin — **django-cors-headers**
+> [requirements.txt line 4](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/requirements.txt#L4-L4)
+
+- React runs on port `3000`, Django on port `8000` — **different origins**. Browsers enforce the Same-Origin Policy and would block all requests.
+- `CorsMiddleware` + `CORS_ALLOW_ALL_ORIGINS=True` in [settings.py](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/stockanalysis/settings.py) adds the required `Access-Control-Allow-*` headers so React can communicate with Django seamlessly.
+
+---
+
+### 4. Database — **PostgreSQL via psycopg2-binary**
+> [requirements.txt line 5](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/requirements.txt#L5-L5)
+
+- **PostgreSQL** is a production-grade relational DB, suitable for:
+  - Large `StockHistory` time-series data (thousands of rows per stock)
+  - ACID compliance for financial portfolio transactions (buys/sells)
+  - Foreign-key joins (`Portfolio` → `Stock`, `Prediction` → `Stock`)
+- **psycopg2-binary** is the standard PostgreSQL adapter for Python/Django.
+- Configurable — the DB settings in [settings.py](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/stockanalysis/settings.py) allow fallback to SQLite for local development without PostgreSQL installed.
+
+---
+
+### 5. Live Market Data — **yfinance**
+> [requirements.txt line 6](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/requirements.txt#L6-L6)
+
+- **Free, no API key required**: Unlike paid Bloomberg/NSE/Alpha Vantage APIs, yfinance scrapes Yahoo Finance publicly and costs nothing — perfect for a student project.
+- **Indian market support**: Handles NSE symbols with `.NS` suffix (e.g., `RELIANCE.NS`, `TCS.NS`). The `_resolve_symbol()` helper in [stocks/views.py](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/stocks/views.py) automatically tries `symbol` then `symbol.NS`.
+- **Provides both price history and fundamentals**: OHLCV (Open-High-Low-Close-Volume) for technical indicators, plus `info` dict for market cap, P/E, 52-week range, etc.
+- **Screener integration**: `top-movers` endpoint uses the screener module to fetch pre-market gainers/losers by market cap without building a custom scaper.
+
+---
+
+### 6. Data Analysis — **pandas + numpy**
+> [requirements.txt lines 7–8](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/requirements.txt#L7-L8)
+
+- **pandas DataFrames**: yfinance returns time-series as DataFrames. Operations like `.rolling(window=20).mean()` for MA20, `.diff()` for price changes, and `.tail(30)` for recent data are one-liners.
+- **numpy**: Used under the hood by pandas + sklearn, and directly for `np.polyfit()` in the linear regression prediction in [analysis.py](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/stocks/analysis.py) (`generate_prediction()`).
+- **Academic relevance**: These are the standard tools taught in data science / ML courses — easy to justify and explain.
+
+---
+
+### 7. Prediction Engine — **scikit-learn**
+> [requirements.txt line 9](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/requirements.txt#L9-L9)
+
+- Used for **simple linear regression-based price prediction** in [analysis.py](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Backend/stocks/analysis.py) — `generate_prediction()` fits historical close prices against day indices and projects forward 14 days.
+- Industry-standard ML library; even a basic model demonstrates that the project has a **predictive / analytical component** (which differentiates it from a pure data display app).
+- Extensible — the architecture allows swapping the model for ARIMA, LSTM, etc., without changing views or serializers.
+
+---
+
+### 8. Frontend Framework — **React 19 + React Router DOM 7**
+> [package.json lines 11–13](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/package.json#L11-L13)
+
+- **SPA (Single Page Application)** = no full page reloads; Dashboard → Analysis → Portfolio navigation is instant via client-side routing ([App.js](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/src/App.js)).
+- **Component-based architecture** — `StockChart`, `Recommendation`, `ReturnCalculator`, `Navbar`, `ProtectedRoute` are reusable components that keep code modular.
+- **Context API** ([AuthContext.jsx](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/src/context/AuthContext.jsx)) provides global auth state (user + tokens) without prop drilling.
+- **React's dominance in the industry** makes this a marketable choice — examiner recognizes it as a modern, relevant frontend skill.
+
+---
+
+### 9. HTTP Client — **axios**
+> [package.json line 10](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/package.json#L10-L10)
+
+- Simpler and more feature-rich than the native `fetch()` API:
+  - **Request interceptor**: Auto-attaches `Authorization: Bearer <accessToken>` to every request.
+  - **Response interceptor**: On 401 Unauthorized, it silently calls `/users/token/refresh/`, saves new tokens, and **retries the original request** — UX stays smooth.
+  - Auto-JSON parsing, consistent error objects, and cancel-token support.
+
+---
+
+### 10. Charting — **recharts + custom SVG (StockChart)**
+> [package.json line 15](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/package.json#L15-L15), plus [StockChart.jsx](file:///d:/JHC_COLLEGE/Project/SEM%20V/Stock%20Analysis/Stock%20Analysis%20Frontend/src/components/StockChart.jsx)
+
+- **recharts** is a declarative React chart library for standard charts (used in dashboard widgets).
+- **Custom SVG `StockChart`** for candlestick + predicted-price series — this shows the project doesn't *just* use libraries; it has custom visualization code with gradient area fill, dashed prediction line, crosshair hover HUD, and date axis ticks.
+
+---
+
+## Summary for Viva (1-minute version)
+
+> *"This stack was chosen to balance **academic relevance**, **developer productivity**, and **domain suitability for finance**:
+> 1. **Django + DRF** give a secure, ORM-driven backend with built-in admin and JWT auth — minimal boilerplate, maximum security.
+> 2. **yfinance + pandas + scikit-learn** are the standard Python data-science triad — free NSE market data, clean technical-indicator calculations via DataFrames, and a simple regression prediction model that adds an analytical core.
+> 3. **PostgreSQL** handles the time-series history and relational portfolio data with proper ACID guarantees.
+> 4. **React + React Router + Axios** deliver a responsive SPA with interceptors that transparently handle JWT refresh, protected routes, and instant navigation.
+> 5. **Custom SVG charts + Recharts** balance custom visualization with ready-made widgets, making the dashboard both functional and visually clear."*
