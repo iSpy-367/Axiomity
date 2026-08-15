@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from stocks.models import Stock
 from stocks.views import _resolve_symbol
-from .models import Portfolio
+from .models import Portfolio, BUY_BROKERAGE_RATE, SELL_BROKERAGE_RATE, BROKERAGE_RATE
 
 
 def _script_code(normalized_symbol):
@@ -25,13 +25,16 @@ class PortfolioSerializer(serializers.ModelSerializer):
         model = Portfolio
         fields = [
             'id', 'symbol', 'display_name', 'quantity', 'buy_price',
+            'buy_date', 'sell_date', 'status', 'exit_price',
+            'realized_gross_pnl', 'realized_brokerage', 'realized_net_pnl',
             'date_added', 'current_price', 'total_value', 'pnl',
             'gross_pnl', 'brokerage_cost', 'net_pnl', 'net_gain',
             'daily_change_percent'
         ]
         read_only_fields = [
             'id', 'date_added', 'current_price', 'total_value',
-            'pnl', 'gross_pnl', 'brokerage_cost', 'net_pnl', 'net_gain'
+            'pnl', 'gross_pnl', 'brokerage_cost', 'net_pnl', 'net_gain',
+            'realized_gross_pnl', 'realized_brokerage', 'realized_net_pnl'
         ]
 
     def validate_quantity(self, value):
@@ -93,7 +96,8 @@ class PortfolioSerializer(serializers.ModelSerializer):
         if stock is None:
             stock, _ = Stock.objects.get_or_create(symbol=symbol, defaults={'name': symbol})
 
-        existing = Portfolio.objects.filter(user=user, stock=stock).first()
+        # Check only ACTIVE positions for repeat purchase averaging
+        existing = Portfolio.objects.filter(user=user, stock=stock, status='active').first()
         if existing is not None:
             total_quantity = existing.quantity + validated_data['quantity']
             if total_quantity <= 0:
@@ -104,35 +108,47 @@ class PortfolioSerializer(serializers.ModelSerializer):
             ) / total_quantity
             existing.quantity = total_quantity
             existing.buy_price = round(weighted_price, 2)
+            if 'buy_date' in validated_data:
+                existing.buy_date = validated_data['buy_date']
             existing.save()
             return existing
 
-        return Portfolio.objects.create(user=user, stock=stock, **validated_data)
+        return Portfolio.objects.create(user=user, stock=stock, status='active', **validated_data)
 
     def get_current_price(self, instance):
+        if instance.status == 'exited' and instance.exit_price is not None:
+            return instance.exit_price
         return instance.stock.current_price or 0
 
     def get_display_name(self, instance):
         return f'{instance.stock.name} ({_script_code(instance.stock.symbol)})'
 
     def get_total_value(self, instance):
-        return round((instance.stock.current_price or 0) * instance.quantity, 2)
+        price = self.get_current_price(instance)
+        return round(price * instance.quantity, 2)
 
     def get_gross_pnl(self, instance):
-        current = instance.stock.current_price or 0
+        if instance.status == 'exited' and instance.realized_gross_pnl is not None:
+            return round(instance.realized_gross_pnl, 2)
+        current = instance.stock.current_price or instance.buy_price
         return round((current - instance.buy_price) * instance.quantity, 2)
 
     def get_pnl(self, instance):
         return self.get_gross_pnl(instance)
 
     def get_brokerage_cost(self, instance):
-        # 0.30% retail turnover brokerage fee (buy value + current value)
-        current = instance.stock.current_price or instance.buy_price
+        if instance.status == 'exited' and instance.realized_brokerage is not None:
+            return round(instance.realized_brokerage, 2)
+        price = instance.stock.current_price or instance.buy_price
         buy_val = instance.buy_price * instance.quantity
-        curr_val = current * instance.quantity
-        return round(0.003 * (buy_val + curr_val), 2)
+        sell_val = price * instance.quantity
+        buy_brokerage = BUY_BROKERAGE_RATE * buy_val
+        sell_brokerage = SELL_BROKERAGE_RATE * sell_val
+        return round(buy_brokerage + sell_brokerage, 2)
 
     def get_net_pnl(self, instance):
+        if instance.status == 'exited' and instance.realized_net_pnl is not None:
+            return round(instance.realized_net_pnl, 2)
         gross = self.get_gross_pnl(instance)
         brokerage = self.get_brokerage_cost(instance)
         return round(gross - brokerage, 2)
@@ -141,6 +157,8 @@ class PortfolioSerializer(serializers.ModelSerializer):
         return self.get_net_pnl(instance)
 
     def get_daily_change_percent(self, instance):
+        if instance.status == 'exited':
+            return 0.0
         from stocks.models import StockHistory
         history = StockHistory.objects.filter(stock=instance.stock).order_by('-date')[:1]
         if history.exists():

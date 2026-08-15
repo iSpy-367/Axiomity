@@ -58,8 +58,9 @@ export const analyzeStock = (symbol) => api.get(`/stocks/analyze/${symbol}/`);
 export const searchStocks = (query) => api.get(`/stocks/search/?q=${encodeURIComponent(query)}`);
 export const getTopMovers = () => api.get('/stocks/top-movers/');
 export const getPortfolio = () => api.get('/portfolio/');
-export const addPortfolioItem = (data) => api.post('/portfolio/', data);
+export const addPortfolioItem = (item) => api.post('/portfolio/', item);
 export const deletePortfolioItem = (id) => api.delete(`/portfolio/${id}/`);
-export const getFiiDiiActivity = (days = 30) => api.get(`/market/fii-dii/?days=${days}`);
+export const exitPortfolioItem = (id, data = {}) => api.post(`/portfolio/${id}/exit/`, data);
+export const getFiiDiiActivity = (days = 30) => api.get(`/stocks/fii-dii/?days=${days}`);
 
 export default api;

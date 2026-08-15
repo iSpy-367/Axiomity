@@ -1,12 +1,47 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { getPortfolio, deletePortfolioItem, addPortfolioItem, searchStocks } from '../services/api';
+import {
+    getPortfolio,
+    deletePortfolioItem,
+    addPortfolioItem,
+    exitPortfolioItem,
+    searchStocks
+} from '../services/api';
+
+const BUY_BROKERAGE_RATE = 0.0015;   // 0.15% buying brokerage rate on buy turnover
+const SELL_BROKERAGE_RATE = 0.0015;  // 0.15% selling brokerage rate on LTP / exit turnover
+const BROKERAGE_RATE = 0.003;        // Combined 0.30% total rate
 
 const ALLOC_COLORS = [
     '#2563eb', '#10b981', '#f59e0b', '#8b5cf6',
     '#06b6d4', '#ec4899', '#f97316', '#64748b'
 ];
+
+const getTodayDateStr = () => new Date().toISOString().split('T')[0];
+
+const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+        const d = new Date(dateStr);
+        if (Number.isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+};
+
+const calcItemBrokerage = (buyPrice, currentOrExitPrice, qty) => {
+    const buyVal = (buyPrice || 0) * qty;
+    const sellVal = (currentOrExitPrice || buyPrice || 0) * qty;
+    const buyChg = BUY_BROKERAGE_RATE * buyVal;
+    const sellChg = SELL_BROKERAGE_RATE * sellVal;
+    return {
+        buyChg,
+        sellChg,
+        total: buyChg + sellChg
+    };
+};
 
 function Portfolio() {
     const [portfolio, setPortfolio] = useState([]);
@@ -16,27 +51,53 @@ function Portfolio() {
     const [scriptSymbol, setScriptSymbol] = useState('');
     const [scriptQty, setScriptQty] = useState(1);
     const [scriptBuyPrice, setScriptBuyPrice] = useState('');
+    const [buyDate, setBuyDate] = useState(getTodayDateStr());
     const [filterQuery, setFilterQuery] = useState('');
     const [expandedItemId, setExpandedItemId] = useState(null);
+    const [activeHoldingsTab, setActiveHoldingsTab] = useState('active'); // 'active' | 'exited'
 
     // Typeahead state for Quick Entry
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const symbolInputRef = useRef(null);
 
-    const totalInvested = portfolio.reduce((sum, item) => sum + (item.buy_price || 0) * item.quantity, 0);
-    const totalCurrent = portfolio.reduce((sum, item) => sum + (item.current_price || 0) * item.quantity, 0);
-    const totalGrossPnl = totalCurrent - totalInvested;
-    const totalBrokerage = portfolio.reduce((sum, item) => {
-        if (item.brokerage_cost != null) return sum + Number(item.brokerage_cost);
-        const buyVal = (item.buy_price || 0) * item.quantity;
-        const currVal = (item.current_price || item.buy_price || 0) * item.quantity;
-        return sum + 0.003 * (buyVal + currVal);
-    }, 0);
-    const totalNetPnl = totalGrossPnl - totalBrokerage;
-    const totalNetPnlPercent = totalInvested ? (totalNetPnl / totalInvested) * 100 : 0;
+    // Split active vs exited positions
+    const activePositions = portfolio.filter(item => item.status !== 'exited');
+    const exitedPositions = portfolio.filter(item => item.status === 'exited');
 
-    const totalDayChange = portfolio.reduce((sum, item) => {
+    // 1. Active Portfolio Calculations
+    const totalInvested = activePositions.reduce((sum, item) => sum + (item.buy_price || 0) * item.quantity, 0);
+    const totalCurrent = activePositions.reduce((sum, item) => sum + (item.current_price || 0) * item.quantity, 0);
+    const totalActiveGrossPnl = totalCurrent - totalInvested;
+    const totalActiveBrokerage = activePositions.reduce((sum, item) => {
+        if (item.brokerage_cost != null) return sum + Number(item.brokerage_cost);
+        return sum + calcItemBrokerage(item.buy_price, item.current_price, item.quantity).total;
+    }, 0);
+    const totalActiveNetPnl = totalActiveGrossPnl - totalActiveBrokerage;
+    const totalActiveNetPnlPercent = totalInvested > 0 ? (totalActiveNetPnl / totalInvested) * 100 : 0;
+
+    // 2. Exited Positions Realized Calculations
+    const totalExitedRealizedNetPnl = exitedPositions.reduce((sum, item) => {
+        if (item.realized_net_pnl != null) return sum + Number(item.realized_net_pnl);
+        if (item.net_pnl != null) return sum + Number(item.net_pnl);
+        const inv = (item.buy_price || 0) * item.quantity;
+        const exitVal = (item.exit_price || item.buy_price || 0) * item.quantity;
+        const gross = exitVal - inv;
+        const brokerage = calcItemBrokerage(item.buy_price, item.exit_price, item.quantity).total;
+        return sum + (gross - brokerage);
+    }, 0);
+
+    const totalExitedRealizedBrokerage = exitedPositions.reduce((sum, item) => {
+        if (item.realized_brokerage != null) return sum + Number(item.realized_brokerage);
+        if (item.brokerage_cost != null) return sum + Number(item.brokerage_cost);
+        return sum + calcItemBrokerage(item.buy_price, item.exit_price, item.quantity).total;
+    }, 0);
+
+    // 3. Absolute P&L = Sum(Exited Realized P&L) + Sum(Active Unrealized P&L)
+    const absolutePnl = totalActiveNetPnl + totalExitedRealizedNetPnl;
+
+    // 4. Day's Profit / Loss
+    const totalDayChange = activePositions.reduce((sum, item) => {
         const qty = item.quantity || 0;
         const price = item.current_price || 0;
         const changePct = item.daily_change_percent || 0;
@@ -48,7 +109,8 @@ function Portfolio() {
     const totalPrevCurrent = totalCurrent - totalDayChange;
     const totalDayChangePercent = totalPrevCurrent > 0 ? (totalDayChange / totalPrevCurrent) * 100 : 0;
 
-    const filteredPortfolio = portfolio.filter(item =>
+    // Filter positions based on activeHoldingsTab ('active' vs 'exited') and filterQuery
+    const displayedPositions = (activeHoldingsTab === 'active' ? activePositions : exitedPositions).filter(item =>
         item.symbol.toLowerCase().includes(filterQuery.toLowerCase()) ||
         (item.display_name && item.display_name.toLowerCase().includes(filterQuery.toLowerCase()))
     );
@@ -95,87 +157,111 @@ function Portfolio() {
 
     const handleDelete = async (id) => {
         setMessage('');
+        setError('');
         try {
             await deletePortfolioItem(id);
             setMessage('Position removed successfully.');
             await loadPortfolio();
-        } catch {
-            setError('Unable to remove this position right now.');
+        } catch (err) {
+            setError('Unable to delete position.');
+        }
+    };
+
+    const handleExit = async (id) => {
+        setMessage('');
+        setError('');
+        try {
+            await exitPortfolioItem(id);
+            setMessage('Position exited and realized P&L locked successfully.');
+            await loadPortfolio();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Unable to exit position.');
         }
     };
 
     const handleSelectSuggestion = (item) => {
         setScriptSymbol(item.symbol);
+        if (item.current_price) {
+            setScriptBuyPrice(item.current_price.toString());
+        }
+        setSuggestions([]);
         setShowSuggestions(false);
     };
 
-    const formatCurrency = (value) => {
-        if (value == null || Number.isNaN(value)) return '—';
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 2,
-        }).format(value);
+    const formatCurrency = (val) => {
+        const n = Number(val || 0);
+        return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     return (
         <div className="app-shell">
             <Navbar />
-            <div className="portfolio-page-container">
+            <div className="portfolio-page">
 
-                {/* Header Strip */}
-                <div className="portfolio-header-strip">
-                    <div>
-                        <span className="fintech-eyebrow">EQUITY HOLDINGS</span>
-                        <h1>Portfolio & Capital Allocation</h1>
+                {/* Hero Title Bar */}
+                <section className="hero-card portfolio-hero-card">
+                    <div className="hero-copy">
+                        <p className="eyebrow">PORTFOLIO MANAGEMENT • LIVE POSITIONS</p>
+                        <h1>Your Holdings Desk</h1>
+                        <p>Track real-time market value, capital allocation, active P&L, realized performance, and absolute P&L.</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span className="market-sync-tag">
-                            {portfolio.length} {portfolio.length === 1 ? 'Position' : 'Positions'} Active
-                        </span>
-                    </div>
-                </div>
+                </section>
 
-                {message && <div className="status success" style={{ marginBottom: '20px' }}>{message}</div>}
-                {error && <div className="status error" style={{ marginBottom: '20px' }}>{error}</div>}
+                {message && <div className="status success" style={{ marginBottom: '16px' }}>{message}</div>}
+                {error && <div className="status error" style={{ marginBottom: '16px' }}>{error}</div>}
 
-                {/* 4 Summary Stat Cards Grid */}
+                {/* Portfolio Summary KPI Cards Grid */}
                 <section className="portfolio-stats-grid">
-                    {/* Invested */}
+                    {/* Invested Capital */}
                     <div className="portfolio-stat-card">
-                        <span className="stat-card-label">Total Invested</span>
+                        <span className="stat-card-label">Invested Capital</span>
                         <div className="stat-card-value">{formatCurrency(totalInvested)}</div>
-                        <div className="stat-card-delta-row" style={{ color: '#64748b' }}>
-                            Base capital deployed
+                        <div className="stat-card-delta-row" style={{ color: 'var(--text-muted)' }}>
+                            {activePositions.length} active position(s)
                         </div>
                     </div>
 
-                    {/* Current Value */}
+                    {/* Current Portfolio Value */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Current Value</span>
                         <div className="stat-card-value">{formatCurrency(totalCurrent)}</div>
-                        <div className="stat-card-delta-row" style={{ color: '#64748b' }}>
-                            Market evaluation
+                        <div className="stat-card-delta-row">
+                            <span className={`mover-pct-badge ${totalActiveGrossPnl >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
+                                {totalActiveGrossPnl >= 0 ? '+' : ''}{totalInvested > 0 ? ((totalActiveGrossPnl / totalInvested) * 100).toFixed(2) : '0.00'}% Gross
+                            </span>
                         </div>
                     </div>
 
-                    {/* Net P&L (After Brokerage) */}
+                    {/* Active Net P&L (Unrealized) */}
                     <div className="portfolio-stat-card">
-                        <span className="stat-card-label">Net P&L</span>
-                        <div className="stat-card-value" style={{ color: totalNetPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
-                            {totalNetPnl >= 0 ? '+' : ''}{formatCurrency(totalNetPnl)}
+                        <span className="stat-card-label">Active Net P&L</span>
+                        <div className="stat-card-value" style={{ color: totalActiveNetPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
+                            {totalActiveNetPnl >= 0 ? '+' : ''}{formatCurrency(totalActiveNetPnl)}
                         </div>
                         <div className="stat-card-delta-row">
-                            <span className={`mover-pct-badge ${totalNetPnl >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
-                                {totalNetPnl >= 0 ? '+' : ''}{totalNetPnlPercent.toFixed(2)}%
+                            <span className={`mover-pct-badge ${totalActiveNetPnl >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
+                                {totalActiveNetPnl >= 0 ? '+' : ''}{totalActiveNetPnlPercent.toFixed(2)}%
                             </span>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-                                Gross: {formatCurrency(totalGrossPnl)} · Chgs: -{formatCurrency(totalBrokerage)}
+                                Chgs: -{formatCurrency(totalActiveBrokerage)}
                             </span>
                         </div>
                     </div>
 
-                    {/* Day's P&L */}
+                    {/* Absolute P&L = Realized P&L + Active P&L */}
+                    <div className="portfolio-stat-card highlight">
+                        <span className="stat-card-label">Absolute P&L</span>
+                        <div className="stat-card-value" style={{ color: absolutePnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
+                            {absolutePnl >= 0 ? '+' : ''}{formatCurrency(absolutePnl)}
+                        </div>
+                        <div className="stat-card-delta-row">
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
+                                Realized: {formatCurrency(totalExitedRealizedNetPnl)} · Active: {formatCurrency(totalActiveNetPnl)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Day's Profit / Loss */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Day's Profit / Loss</span>
                         <div className="stat-card-value" style={{ color: totalDayChange >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
@@ -193,15 +279,33 @@ function Portfolio() {
                 {/* Main Content Layout Grid */}
                 <div className="portfolio-layout-grid">
 
-                    {/* Left Column: Holdings & Empty State */}
+                    {/* Left Column: Holdings Book */}
                     <div>
                         <div className="portfolio-holdings-card">
                             <div className="holdings-head-toolbar">
                                 <div>
-                                    <span className="fintech-eyebrow">ACTIVE ASSETS</span>
-                                    <h2 style={{ margin: '2px 0 0', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                    <span className="fintech-eyebrow">PORTFOLIO POSITIONS</span>
+                                    <h2 style={{ margin: '2px 0 8px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                                         Holdings Book
                                     </h2>
+
+                                    {/* Active vs Exited Tabs */}
+                                    <div className="holdings-tabs-bar">
+                                        <button
+                                            type="button"
+                                            className={`holding-tab-btn ${activeHoldingsTab === 'active' ? 'active' : ''}`}
+                                            onClick={() => setActiveHoldingsTab('active')}
+                                        >
+                                            Active Holdings ({activePositions.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`holding-tab-btn ${activeHoldingsTab === 'exited' ? 'active' : ''}`}
+                                            onClick={() => setActiveHoldingsTab('exited')}
+                                        >
+                                            Past Exited Holdings ({exitedPositions.length})
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="holding-search-box">
@@ -223,10 +327,9 @@ function Portfolio() {
                                     Loading your portfolio positions…
                                 </div>
                             ) : portfolio.length === 0 ? (
-                                /* Intentional Fintech Empty State */
                                 <div className="empty-state-fintech">
                                     <div className="empty-icon-circle">💼</div>
-                                    <h3>No Open Positions Yet</h3>
+                                    <h3>No Positions Yet</h3>
                                     <p>
                                         Your portfolio is currently empty. Add your first stock position using the Quick Position Entry form to track real-time P&L and technical analytics.
                                     </p>
@@ -239,22 +342,39 @@ function Portfolio() {
                                         + Add First Position
                                     </button>
                                 </div>
-                            ) : filteredPortfolio.length === 0 ? (
+                            ) : displayedPositions.length === 0 ? (
                                 <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                    No holdings match "{filterQuery}".
+                                    {activeHoldingsTab === 'active'
+                                        ? (filterQuery ? `No active holdings match "${filterQuery}".` : 'No active holdings currently open.')
+                                        : (filterQuery ? `No exited holdings match "${filterQuery}".` : 'No past exited holdings recorded yet. Clicking "Exit Position" on an active position moves it here with locked realized P&L.')}
                                 </div>
                             ) : (
                                 <div className="holdings-list-shell">
-                                    {filteredPortfolio.map((item) => {
+                                    {displayedPositions.map((item) => {
+                                        const isExited = item.status === 'exited';
                                         const invested = (item.buy_price || 0) * item.quantity;
-                                        const currentValue = (item.current_price || 0) * item.quantity;
-                                        const grossPnl = item.gross_pnl != null ? Number(item.gross_pnl) : (currentValue - invested);
-                                        const brokerage = item.brokerage_cost != null ? Number(item.brokerage_cost) : (0.003 * (invested + currentValue));
-                                        const netPnl = item.net_pnl != null ? Number(item.net_pnl) : (grossPnl - brokerage);
+                                        const currentValue = isExited
+                                            ? (item.exit_price || item.buy_price || 0) * item.quantity
+                                            : (item.current_price || 0) * item.quantity;
+
+                                        const grossPnl = item.gross_pnl != null
+                                            ? Number(item.gross_pnl)
+                                            : (currentValue - invested);
+
+                                        const itemBrk = calcItemBrokerage(item.buy_price, isExited ? item.exit_price : item.current_price, item.quantity);
+                                        const brokerage = item.brokerage_cost != null
+                                            ? Number(item.brokerage_cost)
+                                            : itemBrk.total;
+
+                                        const netPnl = item.net_pnl != null
+                                            ? Number(item.net_pnl)
+                                            : (grossPnl - brokerage);
+
                                         const netPnlPercent = invested ? (netPnl / invested) * 100 : 0;
                                         const isExpanded = expandedItemId === item.id;
+
                                         return (
-                                            <div key={item.id} className="holding-card-item">
+                                            <div key={item.id} className={`holding-card-item ${isExited ? 'exited-holding-item' : ''}`}>
                                                 {/* Summary Row */}
                                                 <div
                                                     className="holding-summary-head"
@@ -265,9 +385,20 @@ function Portfolio() {
                                                         <div className="holding-sym-row">
                                                             <span className="holding-sym-title">{item.symbol}</span>
                                                             <span className="typeahead-badge nse">{item.exchange || 'NSE'}</span>
+                                                            {isExited ? (
+                                                                <span className="exited-status-pill">EXITED</span>
+                                                            ) : (
+                                                                <span className="active-status-pill">ACTIVE</span>
+                                                            )}
                                                         </div>
                                                         <div className="holding-qty-sub">
                                                             Qty: <strong>{item.quantity}</strong> · Avg: <strong>{formatCurrency(item.buy_price)}</strong> · Invested: <strong>{formatCurrency(invested)}</strong>
+                                                            {item.buy_date && (
+                                                                <span> · Bought: <strong>{formatDateDisplay(item.buy_date)}</strong></span>
+                                                            )}
+                                                            {isExited && item.sell_date && (
+                                                                <span> · Exit Date: <strong>{formatDateDisplay(item.sell_date)}</strong></span>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -277,7 +408,7 @@ function Portfolio() {
                                                                 {netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}
                                                             </span>
                                                             <span className="holding-ltp-sub">
-                                                                LTP: {formatCurrency(item.current_price)}
+                                                                {isExited ? `Exit: ${formatCurrency(item.exit_price || item.current_price)}` : `LTP: ${formatCurrency(item.current_price)}`}
                                                             </span>
                                                         </div>
                                                         <div className={`mover-pct-badge ${netPnl >= 0 ? 'positive' : 'negative'}`}>
@@ -294,12 +425,19 @@ function Portfolio() {
                                                                 {item.display_name || item.name || item.symbol}
                                                             </div>
                                                             <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                                                <span>Current Value: <strong>{formatCurrency(currentValue)}</strong></span>
+                                                                <span>{isExited ? 'Realized Exit Value' : 'Current Value'}: <strong>{formatCurrency(currentValue)}</strong></span>
                                                                 <span>Gross P&L: <strong style={{ color: grossPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{grossPnl >= 0 ? '+' : ''}{formatCurrency(grossPnl)}</strong></span>
-                                                                <span>Brokerage (0.30%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(brokerage)}</strong></span>
+                                                                <span>Buy Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.buyChg)}</strong></span>
+                                                                <span>Sell Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.sellChg)}</strong></span>
+                                                                <span>Total Charges: <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(brokerage)}</strong></span>
                                                                 <span>Net P&L: <strong style={{ color: netPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}</strong></span>
+                                                                <span>Buy Date: <strong>{formatDateDisplay(item.buy_date) || '—'}</strong></span>
+                                                                {isExited && (
+                                                                    <span>Sell / Exit Date: <strong>{formatDateDisplay(item.sell_date) || '—'}</strong></span>
+                                                                )}
                                                             </div>
                                                         </div>
+
                                                         <div className="holding-expanded-btns">
                                                             <Link
                                                                 to={`/analysis?symbol=${item.symbol}`}
@@ -312,10 +450,28 @@ function Portfolio() {
                                                                 </svg>
                                                                 Analyze Stock
                                                             </Link>
+
+                                                            {!isExited && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn-exit-holding"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleExit(item.id);
+                                                                    }}
+                                                                    title="Exit position and lock in realized P&L"
+                                                                >
+                                                                    Exit Position
+                                                                </button>
+                                                            )}
+
                                                             <button
                                                                 type="button"
                                                                 className="btn-delete-holding"
-                                                                onClick={() => handleDelete(item.id)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDelete(item.id);
+                                                                }}
                                                             >
                                                                 Delete
                                                             </button>
@@ -329,23 +485,23 @@ function Portfolio() {
                             )}
                         </div>
 
-                        {/* Portfolio Allocation Visualizer Card */}
-                        {portfolio.length > 0 && totalCurrent > 0 && (
-                            <div className="portfolio-allocation-card">
+                        {/* Capital Allocation Visualizer Card */}
+                        {activePositions.length > 0 && totalCurrent > 0 && (
+                            <div className="portfolio-allocation-card" style={{ marginTop: '20px' }}>
                                 <span className="fintech-eyebrow">CAPITAL DIVERSIFICATION</span>
-                                <h3 style={{ margin: '2px 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                                <h3 style={{ margin: '2px 0 12px', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                                     Portfolio Allocation Breakdown
                                 </h3>
 
-                                <div className="allocation-bar-segmented">
-                                    {portfolio.map((item, idx) => {
+                                <div className="allocation-segmented-bar">
+                                    {activePositions.map((item, idx) => {
                                         const val = (item.current_price || 0) * item.quantity;
                                         const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
                                         const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
                                         return (
                                             <div
                                                 key={item.id}
-                                                className="allocation-seg-item"
+                                                className="alloc-segment"
                                                 style={{ width: `${pct}%`, background: color }}
                                                 title={`${item.symbol}: ${pct.toFixed(1)}% (${formatCurrency(val)})`}
                                             />
@@ -353,8 +509,8 @@ function Portfolio() {
                                     })}
                                 </div>
 
-                                <div className="allocation-legend-grid">
-                                    {portfolio.map((item, idx) => {
+                                <div className="alloc-legend-row">
+                                    {activePositions.map((item, idx) => {
                                         const val = (item.current_price || 0) * item.quantity;
                                         const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
                                         const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
@@ -373,7 +529,7 @@ function Portfolio() {
                     {/* Right Column: Quick Position Entry Form */}
                     <div className="quick-entry-card">
                         <span className="fintech-eyebrow">ORDER DESK</span>
-                        <h2 style={{ margin: '2px 0 16px', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                        <h2 style={{ margin: '2px 0 16px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             Quick Position Entry
                         </h2>
 
@@ -440,6 +596,18 @@ function Portfolio() {
                                 </div>
                             </div>
 
+                            {/* Buy Date Input */}
+                            <div>
+                                <label className="fintech-input-label">Buy Date</label>
+                                <input
+                                    type="date"
+                                    value={buyDate}
+                                    onChange={(e) => setBuyDate(e.target.value)}
+                                    className="fintech-form-input"
+                                    style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.82rem' }}
+                                />
+                            </div>
+
                             {/* Submit Button */}
                             <button
                                 type="button"
@@ -456,6 +624,7 @@ function Portfolio() {
                                             symbol: scriptSymbol.trim().toUpperCase(),
                                             quantity: Number(scriptQty),
                                             buy_price: Number(scriptBuyPrice),
+                                            buy_date: buyDate || getTodayDateStr(),
                                         });
                                         setMessage(`${scriptSymbol.trim().toUpperCase()} successfully added to your holdings.`);
                                         setScriptSymbol('');
@@ -479,4 +648,3 @@ function Portfolio() {
 }
 
 export default Portfolio;
-
