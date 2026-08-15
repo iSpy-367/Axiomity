@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import StockChart from '../components/StockChart';
 import Navbar from '../components/Navbar';
-import FiiDiiActivity from '../components/FiiDiiActivity';
 import { fetchStock, getStock, getTopMovers } from '../services/api';
 
 function Dashboard() {
@@ -340,9 +339,6 @@ function Dashboard() {
                         </div>
                     </div>
                 </section>
-
-                {/* Institutional Inflow-Outflow Analytics (Moneycontrol style) */}
-                <FiiDiiActivity />
 
             </div>
         </div>
