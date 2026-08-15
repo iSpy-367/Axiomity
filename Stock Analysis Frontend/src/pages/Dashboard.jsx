@@ -126,6 +126,8 @@ function Dashboard() {
             month: 'short',
             year: 'numeric',
         });
+    };
+
     const getIndexPoints = (indexData) => {
         if (!indexData) return null;
         const history = Array.isArray(indexData) ? indexData : (indexData.history || []);
