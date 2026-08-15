@@ -476,14 +476,14 @@ function StockChart({
                     </defs>
 
                     {/* Chart Container Background Box */}
-                    <rect x="0" y="0" width={width} height={height} rx="12" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1" />
+                    <rect x="0" y="0" width={width} height={height} rx="12" fill="var(--chart-bg, #ffffff)" stroke="var(--chart-border, #e2e8f0)" strokeWidth="1" />
 
                     <g transform={`translate(${padding.left},${padding.top})`}>
                         {/* 1. Price Horizontal Gridlines & Y-Axis Labels */}
                         {yTicks.map((tick) => (
                             <g key={tick.value} className="grid-line-group">
-                                <line x1="0" x2={innerWidth} y1={tick.y} y2={tick.y} stroke="#f1f5f9" strokeDasharray="3 3" />
-                                <text x="-12" y={tick.y + 4} textAnchor="end" fontSize="11" fontWeight="600" fill="#64748b" className="axis-mono-label">
+                                <line x1="0" x2={innerWidth} y1={tick.y} y2={tick.y} stroke="var(--chart-grid, #f1f5f9)" strokeDasharray="3 3" />
+                                <text x="-12" y={tick.y + 4} textAnchor="end" fontSize="11" fontWeight="600" fill="var(--chart-text, #64748b)" className="axis-mono-label">
                                     ₹{tick.value.toLocaleString('en-IN')}
                                 </text>
                             </g>
@@ -793,7 +793,7 @@ function StockChart({
                                         textAnchor="middle"
                                         fontSize="11"
                                         fontWeight="600"
-                                        fill="#64748b"
+                                        fill="var(--chart-text, #64748b)"
                                         className="axis-mono-label"
                                     >
                                         {label}
@@ -828,15 +828,15 @@ function StockChart({
                                         y={navTop}
                                         width={innerWidth}
                                         height={navHeight}
-                                        fill="#f8fafc"
-                                        stroke="#e2e8f0"
+                                        fill="var(--chart-nav-bg, #f8fafc)"
+                                        stroke="var(--chart-nav-border, #e2e8f0)"
                                         rx="6"
                                     />
                                     {/* Mini Sparkline Line */}
                                     <polyline
                                         points={sparklinePoints}
                                         fill="none"
-                                        stroke="#94a3b8"
+                                        stroke="var(--chart-nav-line, #94a3b8)"
                                         strokeWidth="1.2"
                                         opacity="0.8"
                                     />
@@ -846,9 +846,9 @@ function StockChart({
                                         y={navTop}
                                         width={windowWidth}
                                         height={navHeight}
-                                        fill="#2563eb"
-                                        fillOpacity="0.12"
-                                        stroke="#2563eb"
+                                        fill="var(--primary-blue, #2563eb)"
+                                        fillOpacity="0.16"
+                                        stroke="var(--primary-blue, #2563eb)"
                                         strokeWidth="1.5"
                                         rx="4"
                                     />

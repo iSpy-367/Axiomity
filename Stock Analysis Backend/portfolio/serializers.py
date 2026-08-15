@@ -44,28 +44,31 @@ class PortfolioSerializer(serializers.ModelSerializer):
         if not normalized:
             return None
 
+        # 1. Try canonical resolution first
+        try:
+            res = _resolve_symbol(normalized)
+            if res and res[0]:
+                resolved_symbol = res[0]
+                info = res[1] or {}
+                hist = res[2]
+                stock_obj, _ = Stock.objects.get_or_create(symbol=resolved_symbol, defaults={'name': resolved_symbol})
+                stock_obj.name = info.get('longName') or info.get('shortName') or stock_obj.name or resolved_symbol
+                if hist is not None and not hist.empty:
+                    valid_closes = hist['Close'].dropna()
+                    valid_closes = valid_closes[valid_closes > 0]
+                    if not valid_closes.empty:
+                        stock_obj.current_price = float(valid_closes.iloc[-1])
+                stock_obj.save()
+                return stock_obj
+        except Exception:
+            pass
+
+        # 2. Fallback to existing stock in DB
         stock = Stock.objects.filter(symbol__iexact=normalized).first()
         if not stock and '.' not in normalized:
             stock = Stock.objects.filter(symbol__iexact=f'{normalized}.NS').first()
             if not stock:
                 stock = Stock.objects.filter(symbol__iexact=f'{normalized}.BO').first()
-
-        if stock and stock.current_price and stock.current_price > 0:
-            return stock
-
-        try:
-            resolved_symbol, info, hist = _resolve_symbol(normalized)
-            if resolved_symbol:
-                stock_obj, _ = Stock.objects.get_or_create(symbol=resolved_symbol, defaults={'name': resolved_symbol})
-                stock_obj.name = (info or {}).get('longName') or (info or {}).get('shortName') or resolved_symbol
-                if hist is not None and not hist.empty:
-                    latest_close = float(hist['Close'].dropna().iloc[-1])
-                    if latest_close > 0:
-                        stock_obj.current_price = latest_close
-                stock_obj.save()
-                return stock_obj
-        except Exception:
-            pass
 
         return stock
 

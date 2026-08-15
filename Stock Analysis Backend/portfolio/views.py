@@ -3,6 +3,7 @@ import yfinance as yf
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 
+from stocks.views import _resolve_symbol
 from .models import Portfolio
 from .serializers import PortfolioSerializer
 
@@ -14,13 +15,33 @@ def _refresh_portfolio_prices(portfolio_items):
 
     def update_stock(stock):
         try:
-            ticker = yf.Ticker(stock.symbol)
+            sym = stock.symbol
+            # If stock symbol does not have exchange suffix, resolve it canonically
+            if not sym.endswith('.NS') and not sym.endswith('.BO') and not sym.startswith('^'):
+                res = _resolve_symbol(sym)
+                if res and res[0]:
+                    stock.symbol = res[0]
+                    sym = res[0]
+                    if res[1]:
+                        stock.name = (res[1] or {}).get('longName') or (res[1] or {}).get('shortName') or stock.name
+                    if res[2] is not None and not res[2].empty:
+                        valid_closes = res[2]['Close'].dropna()
+                        valid_closes = valid_closes[valid_closes > 0]
+                        if not valid_closes.empty:
+                            stock.current_price = float(valid_closes.iloc[-1])
+                            stock.save()
+                            return
+
+            ticker = yf.Ticker(sym)
             hist = ticker.history(period='5d', auto_adjust=False)
             if not hist.empty:
-                latest_close = float(hist['Close'].dropna().iloc[-1])
-                if latest_close > 0:
-                    stock.current_price = latest_close
-                    stock.save(update_fields=['current_price', 'last_updated'])
+                valid_closes = hist['Close'].dropna()
+                valid_closes = valid_closes[valid_closes > 0]
+                if not valid_closes.empty:
+                    latest_close = float(valid_closes.iloc[-1])
+                    if latest_close > 0:
+                        stock.current_price = latest_close
+                        stock.save(update_fields=['current_price', 'last_updated'])
         except Exception:
             pass
 
