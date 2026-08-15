@@ -556,6 +556,39 @@ def analyze_stock(request, symbol):
             macd=_sanitize_val(result['macd']),
         )
 
+        # Compute Prev Day High/Low and 1W / 1M / 3M (Quarter) Highs from history
+        prev_day_high = None
+        prev_day_low = None
+        week_high = None
+        month_high = None
+        quarter_high = None
+
+        if history.exists():
+            history_list = list(history)
+            if len(history_list) >= 2:
+                prev_day_high = _clean_float(history_list[-2].high or history_list[-2].close_price)
+                prev_day_low = _clean_float(history_list[-2].low or history_list[-2].close_price)
+            elif len(history_list) == 1:
+                prev_day_high = _clean_float(history_list[-1].high or history_list[-1].close_price)
+                prev_day_low = _clean_float(history_list[-1].low or history_list[-1].close_price)
+
+            import datetime
+            latest_date = history_list[-1].date
+            week_start = latest_date - datetime.timedelta(days=7)
+            month_start = latest_date - datetime.timedelta(days=30)
+            quarter_start = latest_date - datetime.timedelta(days=90)
+
+            week_records = [h for h in history_list if h.date >= week_start]
+            month_records = [h for h in history_list if h.date >= month_start]
+            quarter_records = [h for h in history_list if h.date >= quarter_start]
+
+            if week_records:
+                week_high = max([_clean_float(h.high or h.close_price) for h in week_records])
+            if month_records:
+                month_high = max([_clean_float(h.high or h.close_price) for h in month_records])
+            if quarter_records:
+                quarter_high = max([_clean_float(h.high or h.close_price) for h in quarter_records])
+
         info = yf.Ticker(stock.symbol).info or {}
         fundamentals = {
             'roe': _sanitize_val(info.get('returnOnEquity') or info.get('returnOnEquityTTM')),
@@ -573,6 +606,11 @@ def analyze_stock(request, symbol):
             'two_hundred_day_ma': _sanitize_val(info.get('twoHundredDayAverage')),
             'volume_avg': _sanitize_val(info.get('averageVolume') or info.get('averageVolume10days')),
             'beta': _sanitize_val(info.get('beta')),
+            'prev_day_high': _sanitize_val(prev_day_high),
+            'prev_day_low': _sanitize_val(prev_day_low),
+            'week_high': _sanitize_val(week_high),
+            'month_high': _sanitize_val(month_high),
+            'quarter_high': _sanitize_val(quarter_high),
         }
 
         # Sanitize prediction numbers
@@ -598,3 +636,18 @@ def analyze_stock(request, symbol):
 
     except Exception as exc:
         return Response({'error': str(exc)}, status=400)
+
+
+@api_view(['GET'])
+def fii_dii_activity_view(request):
+    """
+    Returns day-wise FII and DII net institutional inflow/outflow data in ₹ Crores.
+    """
+    try:
+        days = int(request.GET.get('days', 30))
+        from .fii_dii import get_fii_dii_activity
+        data = get_fii_dii_activity(days=days)
+        return Response(data)
+    except Exception as exc:
+        logger.error(f"FII/DII API error: {exc}")
+        return Response({'error': str(exc)}, status=500)

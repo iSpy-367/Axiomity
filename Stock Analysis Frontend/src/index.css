@@ -2774,3 +2774,385 @@ body {
     padding: 32px 20px;
   }
 }
+
+/* ==========================================================================
+   PREVIOUS DAY & PERIODIC HIGHS (ANALYSIS PAGE)
+   ========================================================================== */
+.range-prev-marker {
+  position: absolute;
+  top: -4px;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 14px;
+  background: var(--amber-gold);
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(245, 158, 11, 0.6);
+  z-index: 2;
+}
+
+.prev-session-stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0 0;
+}
+
+.prev-stat-box {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.period-highs-matrix {
+  margin-top: 14px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.period-highs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .period-highs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.period-high-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.period-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.period-val-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.period-num {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.period-chip {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+.period-chip.green {
+  background: var(--emerald-green-soft);
+  color: var(--emerald-green-text);
+  border: 1px solid var(--emerald-green-border);
+}
+
+.period-chip.red {
+  background: var(--crimson-red-soft);
+  color: var(--crimson-red-text);
+  border: 1px solid var(--crimson-red-border);
+}
+
+/* ==========================================================================
+   FII / DII INSTITUTIONAL INFLOW-OUTFLOW SECTION (MONEYCONTROL STYLE)
+   ========================================================================== */
+.fii-dii-section-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  margin-top: 24px;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.fii-dii-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.fii-dii-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  max-width: 680px;
+  line-height: 1.4;
+}
+
+.fii-dii-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .fii-dii-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .fii-dii-stats-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fii-dii-stat-chip {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fii-stat-label-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-pill {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.stat-pill.fii {
+  background: var(--primary-blue-soft);
+  color: var(--primary-blue);
+  border: 1px solid var(--primary-blue-border);
+}
+
+.stat-pill.dii {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #a5f3fc;
+}
+
+[data-theme="dark"] .stat-pill.dii {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border-color: rgba(6, 182, 212, 0.35);
+}
+
+.stat-pill.combined {
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+}
+
+.stat-pill.cumulative {
+  background: var(--amber-gold-soft);
+  color: var(--amber-gold-text);
+  border: 1px solid var(--amber-gold-border);
+}
+
+.stat-sub-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.fii-dii-chart-container {
+  margin-bottom: 24px;
+}
+
+.fii-dii-legend-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.legend-items {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.legend-box {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legend-box.fii-buy { background: var(--emerald-green); }
+.legend-box.fii-sell { background: var(--crimson-red); }
+.legend-box.dii-buy { background: #06b6d4; }
+.legend-box.dii-sell { background: #f59e0b; }
+
+.as-of-tag {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.fii-svg-chart-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.fii-dii-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fii-hover-hud {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.fii-chart-loading,
+.fii-chart-error {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.fii-dii-table-shell {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 18px;
+}
+
+.table-head-row {
+  margin-bottom: 12px;
+}
+
+.table-title {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.fii-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+.fii-dii-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.fii-dii-table th {
+  background: var(--bg-card-alt);
+  color: var(--text-secondary);
+  font-weight: 700;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.fii-dii-table th:first-child,
+.fii-dii-table td:first-child {
+  text-align: left;
+}
+
+.fii-dii-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.fii-dii-table tr:last-child td {
+  border-bottom: none;
+}
+
+.fii-dii-table tr:hover td {
+  background: var(--bg-hover);
+}
+
+.fii-dii-table .date-cell {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.fii-dii-table .mono-num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.fii-net-pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.fii-net-pill.up {
+  background: var(--emerald-green-soft);
+  color: var(--emerald-green-text);
+  border: 1px solid var(--emerald-green-border);
+}
+
+.fii-net-pill.down {
+  background: var(--crimson-red-soft);
+  color: var(--crimson-red-text);
+  border: 1px solid var(--crimson-red-border);
+}
+

@@ -8,10 +8,11 @@ export function ThemeProvider({ children }) {
         if (stored === 'light' || stored === 'dark') {
             return stored;
         }
-        if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            return 'dark';
+        // If explicit light mode preference from OS, respect it; otherwise default to dark
+        if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            return 'light';
         }
-        return 'light';
+        return 'dark';
     });
 
     useEffect(() => {

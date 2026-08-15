@@ -14,14 +14,25 @@ class PortfolioSerializer(serializers.ModelSerializer):
     current_price = serializers.SerializerMethodField()
     total_value = serializers.SerializerMethodField()
     pnl = serializers.SerializerMethodField()
+    gross_pnl = serializers.SerializerMethodField()
+    brokerage_cost = serializers.SerializerMethodField()
+    net_pnl = serializers.SerializerMethodField()
     net_gain = serializers.SerializerMethodField()
     display_name = serializers.SerializerMethodField()
     daily_change_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = Portfolio
-        fields = ['id', 'symbol', 'display_name', 'quantity', 'buy_price', 'date_added', 'current_price', 'total_value', 'pnl', 'net_gain', 'daily_change_percent']
-        read_only_fields = ['id', 'date_added', 'current_price', 'total_value', 'pnl', 'net_gain']
+        fields = [
+            'id', 'symbol', 'display_name', 'quantity', 'buy_price',
+            'date_added', 'current_price', 'total_value', 'pnl',
+            'gross_pnl', 'brokerage_cost', 'net_pnl', 'net_gain',
+            'daily_change_percent'
+        ]
+        read_only_fields = [
+            'id', 'date_added', 'current_price', 'total_value',
+            'pnl', 'gross_pnl', 'brokerage_cost', 'net_pnl', 'net_gain'
+        ]
 
     def validate_quantity(self, value):
         if value <= 0:
@@ -107,13 +118,27 @@ class PortfolioSerializer(serializers.ModelSerializer):
     def get_total_value(self, instance):
         return round((instance.stock.current_price or 0) * instance.quantity, 2)
 
+    def get_gross_pnl(self, instance):
+        current = instance.stock.current_price or 0
+        return round((current - instance.buy_price) * instance.quantity, 2)
+
     def get_pnl(self, instance):
-        return round(((instance.stock.current_price or 0) - instance.buy_price) * instance.quantity, 2)
+        return self.get_gross_pnl(instance)
+
+    def get_brokerage_cost(self, instance):
+        # 0.30% retail turnover brokerage fee (buy value + current value)
+        current = instance.stock.current_price or instance.buy_price
+        buy_val = instance.buy_price * instance.quantity
+        curr_val = current * instance.quantity
+        return round(0.003 * (buy_val + curr_val), 2)
+
+    def get_net_pnl(self, instance):
+        gross = self.get_gross_pnl(instance)
+        brokerage = self.get_brokerage_cost(instance)
+        return round(gross - brokerage, 2)
 
     def get_net_gain(self, instance):
-        pnl = self.get_pnl(instance)
-        brokerage = max(0.0, abs(pnl) * 0.003)
-        return round(pnl - brokerage, 2)
+        return self.get_net_pnl(instance)
 
     def get_daily_change_percent(self, instance):
         from stocks.models import StockHistory

@@ -26,8 +26,15 @@ function Portfolio() {
 
     const totalInvested = portfolio.reduce((sum, item) => sum + (item.buy_price || 0) * item.quantity, 0);
     const totalCurrent = portfolio.reduce((sum, item) => sum + (item.current_price || 0) * item.quantity, 0);
-    const totalPnl = totalCurrent - totalInvested;
-    const totalPnlPercent = totalInvested ? (totalPnl / totalInvested) * 100 : 0;
+    const totalGrossPnl = totalCurrent - totalInvested;
+    const totalBrokerage = portfolio.reduce((sum, item) => {
+        if (item.brokerage_cost != null) return sum + Number(item.brokerage_cost);
+        const buyVal = (item.buy_price || 0) * item.quantity;
+        const currVal = (item.current_price || item.buy_price || 0) * item.quantity;
+        return sum + 0.003 * (buyVal + currVal);
+    }, 0);
+    const totalNetPnl = totalGrossPnl - totalBrokerage;
+    const totalNetPnlPercent = totalInvested ? (totalNetPnl / totalInvested) * 100 : 0;
 
     const totalDayChange = portfolio.reduce((sum, item) => {
         const qty = item.quantity || 0;
@@ -152,31 +159,33 @@ function Portfolio() {
                         </div>
                     </div>
 
-                    {/* Total P&L */}
+                    {/* Net P&L (After Brokerage) */}
                     <div className="portfolio-stat-card">
-                        <span className="stat-card-label">Overall Profit / Loss</span>
-                        <div className="stat-card-value" style={{ color: totalPnl >= 0 ? '#10b981' : '#ef4444' }}>
-                            {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+                        <span className="stat-card-label">Overall Net P&L</span>
+                        <div className="stat-card-value" style={{ color: totalNetPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
+                            {totalNetPnl >= 0 ? '+' : ''}{formatCurrency(totalNetPnl)}
                         </div>
                         <div className="stat-card-delta-row">
-                            <span className={`mover-pct-badge ${totalPnl >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
-                                {totalPnl >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
+                            <span className={`mover-pct-badge ${totalNetPnl >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
+                                {totalNetPnl >= 0 ? '+' : ''}{totalNetPnlPercent.toFixed(2)}%
                             </span>
-                            <span style={{ color: '#64748b', fontSize: '0.76rem' }}>All-time returns</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                                Gross: {formatCurrency(totalGrossPnl)} · Chgs: -{formatCurrency(totalBrokerage)}
+                            </span>
                         </div>
                     </div>
 
                     {/* Day's P&L */}
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Day's Profit / Loss</span>
-                        <div className="stat-card-value" style={{ color: totalDayChange >= 0 ? '#10b981' : '#ef4444' }}>
+                        <div className="stat-card-value" style={{ color: totalDayChange >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>
                             {totalDayChange >= 0 ? '+' : ''}{formatCurrency(totalDayChange)}
                         </div>
                         <div className="stat-card-delta-row">
                             <span className={`mover-pct-badge ${totalDayChange >= 0 ? 'positive' : 'negative'}`} style={{ padding: '2px 8px', fontSize: '0.78rem' }}>
                                 {totalDayChange >= 0 ? '+' : ''}{totalDayChangePercent.toFixed(2)}%
                             </span>
-                            <span style={{ color: '#64748b', fontSize: '0.76rem' }}>Today's movement</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>Today's movement</span>
                         </div>
                     </div>
                 </section>
@@ -190,13 +199,13 @@ function Portfolio() {
                             <div className="holdings-head-toolbar">
                                 <div>
                                     <span className="fintech-eyebrow">ACTIVE ASSETS</span>
-                                    <h2 style={{ margin: '2px 0 0', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                                    <h2 style={{ margin: '2px 0 0', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                                         Holdings Book
                                     </h2>
                                 </div>
 
                                 <div className="holding-search-box">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <circle cx="11" cy="11" r="8"></circle>
                                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                     </svg>
@@ -210,7 +219,7 @@ function Portfolio() {
                             </div>
 
                             {loading ? (
-                                <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b' }}>
+                                <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                     Loading your portfolio positions…
                                 </div>
                             ) : portfolio.length === 0 ? (
@@ -231,7 +240,7 @@ function Portfolio() {
                                     </button>
                                 </div>
                             ) : filteredPortfolio.length === 0 ? (
-                                <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
+                                <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                     No holdings match "{filterQuery}".
                                 </div>
                             ) : (
@@ -239,8 +248,10 @@ function Portfolio() {
                                     {filteredPortfolio.map((item) => {
                                         const invested = (item.buy_price || 0) * item.quantity;
                                         const currentValue = (item.current_price || 0) * item.quantity;
-                                        const pnl = currentValue - invested;
-                                        const pnlPercent = invested ? (pnl / invested) * 100 : 0;
+                                        const grossPnl = item.gross_pnl != null ? Number(item.gross_pnl) : (currentValue - invested);
+                                        const brokerage = item.brokerage_cost != null ? Number(item.brokerage_cost) : (0.003 * (invested + currentValue));
+                                        const netPnl = item.net_pnl != null ? Number(item.net_pnl) : (grossPnl - brokerage);
+                                        const netPnlPercent = invested ? (netPnl / invested) * 100 : 0;
                                         const isExpanded = expandedItemId === item.id;
                                         return (
                                             <div key={item.id} className="holding-card-item">
@@ -262,15 +273,15 @@ function Portfolio() {
 
                                                     <div className="holding-right-col">
                                                         <div className="holding-pnl-block">
-                                                            <span className={`holding-pnl-num ${pnl >= 0 ? 'up' : 'down'}`}>
-                                                                {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                                                            <span className={`holding-pnl-num ${netPnl >= 0 ? 'up' : 'down'}`}>
+                                                                {netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}
                                                             </span>
                                                             <span className="holding-ltp-sub">
                                                                 LTP: {formatCurrency(item.current_price)}
                                                             </span>
                                                         </div>
-                                                        <div className={`mover-pct-badge ${pnl >= 0 ? 'positive' : 'negative'}`}>
-                                                            {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
+                                                        <div className={`mover-pct-badge ${netPnl >= 0 ? 'positive' : 'negative'}`}>
+                                                            {netPnlPercent >= 0 ? '+' : ''}{netPnlPercent.toFixed(2)}%
                                                         </div>
                                                     </div>
                                                 </div>
@@ -278,9 +289,16 @@ function Portfolio() {
                                                 {/* Expanded Details & Actions Panel */}
                                                 {isExpanded && (
                                                     <div className="holding-expanded-actions">
-                                                        <div className="holding-expanded-left">
-                                                            <span><strong>{item.display_name || item.name || item.symbol}</strong></span>
-                                                            <span>Current Value: <strong>{formatCurrency(currentValue)}</strong></span>
+                                                        <div className="holding-expanded-left" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                {item.display_name || item.name || item.symbol}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                                                <span>Current Value: <strong>{formatCurrency(currentValue)}</strong></span>
+                                                                <span>Gross P&L: <strong style={{ color: grossPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{grossPnl >= 0 ? '+' : ''}{formatCurrency(grossPnl)}</strong></span>
+                                                                <span>Brokerage (0.30%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(brokerage)}</strong></span>
+                                                                <span>Net P&L: <strong style={{ color: netPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}</strong></span>
+                                                            </div>
                                                         </div>
                                                         <div className="holding-expanded-btns">
                                                             <Link

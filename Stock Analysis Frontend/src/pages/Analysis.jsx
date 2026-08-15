@@ -353,6 +353,9 @@ function Analysis() {
                                                 const high = num(analysis.fundamentals.fifty_two_week_high);
                                                 const current = num(analysis.current_price);
                                                 const rangePct = (high - low) > 0 ? ((current - low) / (high - low)) * 100 : 50;
+                                                const prevHigh = analysis.fundamentals.prev_day_high != null ? num(analysis.fundamentals.prev_day_high) : null;
+                                                const prevHighPct = prevHigh != null && (high - low) > 0 ? ((prevHigh - low) / (high - low)) * 100 : null;
+
                                                 return (
                                                     <div className="range-slider-wrapper">
                                                         <div className="range-labels-row">
@@ -369,18 +372,139 @@ function Analysis() {
                                                                 <strong className="range-val-mono">₹{formatNumber(high, 2)}</strong>
                                                             </div>
                                                         </div>
-                                                        <div className="range-track-bg">
+                                                        <div className="range-track-bg" style={{ position: 'relative' }}>
+                                                            {prevHighPct != null && (
+                                                                <div
+                                                                    className="range-prev-marker"
+                                                                    style={{ left: `${Math.min(98, Math.max(2, prevHighPct))}%` }}
+                                                                    title={`Prev Day High: ₹${formatNumber(prevHigh, 2)}`}
+                                                                />
+                                                            )}
                                                             <div
                                                                 className="range-thumb-marker"
                                                                 style={{ left: `${Math.min(98, Math.max(2, rangePct))}%` }}
-                                                            ></div>
+                                                            />
                                                         </div>
                                                     </div>
                                                 );
                                             })()}
 
+                                            {/* Previous Session Range (Prev Day High & Low) */}
+                                            <div className="prev-session-stats-row">
+                                                <div className="prev-stat-box">
+                                                    <span className="risk-title">PREV DAY HIGH</span>
+                                                    <div className="risk-stat-row">
+                                                        <strong className="risk-num-mono">
+                                                            {analysis.fundamentals.prev_day_high != null ? `₹${formatNumber(analysis.fundamentals.prev_day_high, 2)}` : '—'}
+                                                        </strong>
+                                                        {analysis.fundamentals.prev_day_high != null && (() => {
+                                                            const pdh = num(analysis.fundamentals.prev_day_high);
+                                                            const cur = num(analysis.current_price);
+                                                            const diff = ((cur - pdh) / pdh) * 100;
+                                                            const isAbove = cur >= pdh;
+                                                            return (
+                                                                <span className={`signal-chip ${isAbove ? 'bullish' : 'neutral'}`}>
+                                                                    {isAbove ? 'Above PDH ▲' : `${diff.toFixed(2)}%`}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                </div>
+
+                                                <div className="prev-stat-box">
+                                                    <span className="risk-title">PREV DAY LOW</span>
+                                                    <div className="risk-stat-row">
+                                                        <strong className="risk-num-mono">
+                                                            {analysis.fundamentals.prev_day_low != null ? `₹${formatNumber(analysis.fundamentals.prev_day_low, 2)}` : '—'}
+                                                        </strong>
+                                                        {analysis.fundamentals.prev_day_low != null && (() => {
+                                                            const pdl = num(analysis.fundamentals.prev_day_low);
+                                                            const cur = num(analysis.current_price);
+                                                            const diff = ((cur - pdl) / pdl) * 100;
+                                                            const isAbove = cur >= pdl;
+                                                            return (
+                                                                <span className={`signal-chip ${isAbove ? 'bullish' : 'bearish'}`}>
+                                                                    {isAbove ? `+${diff.toFixed(2)}%` : 'Below PDL ▼'}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Periodic Highs Matrix (1W / 1M / 3M Quarter High) */}
+                                            <div className="period-highs-matrix">
+                                                <span className="risk-title" style={{ marginBottom: '6px', display: 'block' }}>
+                                                    PERIODIC HIGH BREAKOUT MONITOR
+                                                </span>
+                                                <div className="period-highs-grid">
+                                                    {/* 1-Week High */}
+                                                    <div className="period-high-item">
+                                                        <span className="period-label">1-WEEK HIGH</span>
+                                                        <div className="period-val-row">
+                                                            <strong className="period-num">
+                                                                {analysis.fundamentals.week_high != null ? `₹${formatNumber(analysis.fundamentals.week_high, 2)}` : '—'}
+                                                            </strong>
+                                                            {analysis.fundamentals.week_high != null && (() => {
+                                                                const wh = num(analysis.fundamentals.week_high);
+                                                                const cur = num(analysis.current_price);
+                                                                const isNewHigh = cur >= wh;
+                                                                const diff = ((cur - wh) / wh) * 100;
+                                                                return (
+                                                                    <span className={`period-chip ${isNewHigh ? 'green' : 'red'}`}>
+                                                                        {isNewHigh ? 'NEW HIGH ▲' : `${diff.toFixed(2)}%`}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 1-Month High */}
+                                                    <div className="period-high-item">
+                                                        <span className="period-label">1-MONTH HIGH</span>
+                                                        <div className="period-val-row">
+                                                            <strong className="period-num">
+                                                                {analysis.fundamentals.month_high != null ? `₹${formatNumber(analysis.fundamentals.month_high, 2)}` : '—'}
+                                                            </strong>
+                                                            {analysis.fundamentals.month_high != null && (() => {
+                                                                const mh = num(analysis.fundamentals.month_high);
+                                                                const cur = num(analysis.current_price);
+                                                                const isNewHigh = cur >= mh;
+                                                                const diff = ((cur - mh) / mh) * 100;
+                                                                return (
+                                                                    <span className={`period-chip ${isNewHigh ? 'green' : 'red'}`}>
+                                                                        {isNewHigh ? 'NEW HIGH ▲' : `${diff.toFixed(2)}%`}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 1-Quarter High (3M) */}
+                                                    <div className="period-high-item">
+                                                        <span className="period-label">1-QUARTER HIGH (3M)</span>
+                                                        <div className="period-val-row">
+                                                            <strong className="period-num">
+                                                                {analysis.fundamentals.quarter_high != null ? `₹${formatNumber(analysis.fundamentals.quarter_high, 2)}` : '—'}
+                                                            </strong>
+                                                            {analysis.fundamentals.quarter_high != null && (() => {
+                                                                const qh = num(analysis.fundamentals.quarter_high);
+                                                                const cur = num(analysis.current_price);
+                                                                const isNewHigh = cur >= qh;
+                                                                const diff = ((cur - qh) / qh) * 100;
+                                                                return (
+                                                                    <span className={`period-chip ${isNewHigh ? 'green' : 'red'}`}>
+                                                                        {isNewHigh ? 'NEW HIGH ▲' : `${diff.toFixed(2)}%`}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             {/* Beta & 50/200 DMA Matrix */}
-                                            <div className="risk-metrics-grid">
+                                            <div className="risk-metrics-grid" style={{ marginTop: '14px' }}>
                                                 <div className="risk-metric-box">
                                                     <span className="risk-title">BETA (VOLATILITY)</span>
                                                     {analysis.fundamentals.beta != null ? (() => {

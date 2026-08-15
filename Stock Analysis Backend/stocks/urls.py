@@ -7,4 +7,5 @@ urlpatterns = [
     path('get/<str:symbol>/', views.get_stock, name='get_stock'),
     path('analyze/<str:symbol>/', views.analyze_stock, name='analyze_stock'),
     path('top-movers/', views.top_movers, name='top_movers'),
+    path('fii-dii/', views.fii_dii_activity_view, name='fii_dii_activity'),
 ]

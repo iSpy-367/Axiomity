@@ -1,0 +1,430 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { getFiiDiiActivity } from '../services/api';
+
+function formatCr(val) {
+    if (val == null || Number.isNaN(val)) return '₹0.00 Cr';
+    const num = Number(val);
+    const sign = num > 0 ? '+' : num < 0 ? '-' : '';
+    return `${sign}₹${Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`;
+}
+
+function FiiDiiActivity() {
+    const [days, setDays] = useState(30);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [hoveredIndex, setHoveredIndex] = useState(null);
+
+    useEffect(() => {
+        let mounted = true;
+        setLoading(true);
+        setError('');
+
+        getFiiDiiActivity(days)
+            .then((res) => {
+                if (mounted) {
+                    setData(res.data);
+                    setLoading(false);
+                }
+            })
+            .catch(() => {
+                if (mounted) {
+                    setError('Unable to load institutional flow data.');
+                    setLoading(false);
+                }
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, [days]);
+
+    const records = data?.data || [];
+    const summary = data?.summary || {};
+    const asOf = data?.as_of || 'Today';
+
+    // Chart dimensions & scaling
+    const chartWidth = 960;
+    const chartHeight = 260;
+    const padding = { top: 20, right: 24, bottom: 40, left: 64 };
+    const innerWidth = chartWidth - padding.left - padding.right;
+    const innerHeight = chartHeight - padding.top - padding.bottom;
+
+    const { maxAbsVal, zeroY, barWidth, chartPoints } = useMemo(() => {
+        if (!records.length) {
+            return { maxAbsVal: 1000, zeroY: innerHeight / 2, barWidth: 8, chartPoints: [] };
+        }
+
+        // Chronological order for chart (oldest to newest)
+        const chrono = [...records].reverse();
+        let maxVal = 1000;
+        chrono.forEach((r) => {
+            maxVal = Math.max(maxVal, Math.abs(r.fii_net_value || 0), Math.abs(r.dii_net_value || 0));
+        });
+
+        // Add 15% headroom
+        maxVal = Math.ceil(maxVal * 1.15);
+
+        const zero = padding.top + innerHeight / 2;
+        const slotWidth = innerWidth / chrono.length;
+        const bWidth = Math.max(3, Math.min(14, slotWidth * 0.36));
+
+        const points = chrono.map((r, i) => {
+            const centerX = padding.left + i * slotWidth + slotWidth / 2;
+            const fiiNet = r.fii_net_value || 0;
+            const diiNet = r.dii_net_value || 0;
+
+            const scaleVal = (val) => (val / maxVal) * (innerHeight / 2);
+
+            const fiiH = Math.abs(scaleVal(fiiNet));
+            const fiiY = fiiNet >= 0 ? zero - fiiH : zero;
+
+            const diiH = Math.abs(scaleVal(diiNet));
+            const diiY = diiNet >= 0 ? zero - diiH : zero;
+
+            return {
+                record: r,
+                fiiX: centerX - bWidth - 1,
+                fiiY,
+                fiiH: Math.max(2, fiiH),
+                fiiNet,
+                diiX: centerX + 1,
+                diiY,
+                diiH: Math.max(2, diiH),
+                diiNet,
+                centerX,
+                dateLabel: r.date ? r.date.split('-').slice(1).join('/') : '',
+            };
+        });
+
+        return { maxAbsVal: maxVal, zeroY: zero, barWidth: bWidth, chartPoints: points };
+    }, [records, innerHeight, innerWidth, padding.left, padding.top]);
+
+    return (
+        <section className="fii-dii-section-card">
+            {/* Header & Controls */}
+            <div className="fii-dii-header">
+                <div>
+                    <span className="fintech-eyebrow">INSTITUTIONAL LIQUIDITY</span>
+                    <h2 className="card-title">FII & DII Inflow / Outflow Analytics</h2>
+                    <p className="fii-dii-subtitle">
+                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities (₹ Crores).
+                    </p>
+                </div>
+                <div className="fii-dii-toolbar">
+                    <div className="chart-range-pills">
+                        <button
+                            type="button"
+                            className={`range-pill-btn ${days === 10 ? 'active' : ''}`}
+                            onClick={() => setDays(10)}
+                        >
+                            10D
+                        </button>
+                        <button
+                            type="button"
+                            className={`range-pill-btn ${days === 20 ? 'active' : ''}`}
+                            onClick={() => setDays(20)}
+                        >
+                            20D
+                        </button>
+                        <button
+                            type="button"
+                            className={`range-pill-btn ${days === 30 ? 'active' : ''}`}
+                            onClick={() => setDays(30)}
+                        >
+                            30D
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Glance Summary Cards */}
+            <div className="fii-dii-stats-row">
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill fii">FII TODAY</span>
+                        <span className="stat-sub-date">{summary.today_date || 'Latest'}</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.today_fii_net >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.today_fii_net)}
+                    </div>
+                </div>
+
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill dii">DII TODAY</span>
+                        <span className="stat-sub-date">{summary.today_date || 'Latest'}</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.today_dii_net >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.today_dii_net)}
+                    </div>
+                </div>
+
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill combined">NET INSTITUTIONAL</span>
+                        <span className="stat-sub-date">Combined</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.today_total_net >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.today_total_net)}
+                    </div>
+                </div>
+
+                <div className="fii-dii-stat-chip">
+                    <div className="fii-stat-label-group">
+                        <span className="stat-pill cumulative">{days}D CUMULATIVE</span>
+                        <span className="stat-sub-date">FII + DII Total</span>
+                    </div>
+                    <div className={`stat-val-mono ${summary.cumulative_net_30d >= 0 ? 'up' : 'down'}`}>
+                        {formatCr(summary.cumulative_net_30d)}
+                    </div>
+                </div>
+            </div>
+
+            {/* Legend & Chart View */}
+            <div className="fii-dii-chart-container">
+                <div className="fii-dii-legend-bar">
+                    <div className="legend-items">
+                        <span className="legend-item">
+                            <span className="legend-box fii-buy" /> FII Net Inflow (+)
+                        </span>
+                        <span className="legend-item">
+                            <span className="legend-box fii-sell" /> FII Net Outflow (-)
+                        </span>
+                        <span className="legend-item">
+                            <span className="legend-box dii-buy" /> DII Net Inflow (+)
+                        </span>
+                        <span className="legend-item">
+                            <span className="legend-box dii-sell" /> DII Net Outflow (-)
+                        </span>
+                    </div>
+                    <div className="as-of-tag">Data updated: {asOf}</div>
+                </div>
+
+                {loading ? (
+                    <div className="fii-chart-loading">Loading institutional flow charts…</div>
+                ) : error ? (
+                    <div className="fii-chart-error">{error}</div>
+                ) : (
+                    <div className="fii-svg-chart-wrapper">
+                        <svg
+                            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                            width="100%"
+                            height="240"
+                            className="fii-dii-svg"
+                        >
+                            {/* Chart Container Background Box */}
+                            <rect
+                                x="0"
+                                y="0"
+                                width={chartWidth}
+                                height={chartHeight}
+                                rx="10"
+                                fill="var(--chart-bg, #ffffff)"
+                                stroke="var(--chart-border, #e2e8f0)"
+                                strokeWidth="1"
+                            />
+
+                            {/* Upper & Lower Gridlines */}
+                            <line
+                                x1={padding.left}
+                                x2={chartWidth - padding.right}
+                                y1={padding.top + 10}
+                                y2={padding.top + 10}
+                                stroke="var(--chart-grid, #f1f5f9)"
+                                strokeDasharray="3 3"
+                            />
+                            <text
+                                x={padding.left - 8}
+                                y={padding.top + 14}
+                                textAnchor="end"
+                                fontSize="10"
+                                fontWeight="700"
+                                fill="var(--chart-text, #64748b)"
+                                className="axis-mono-label"
+                            >
+                                +₹{(maxAbsVal / 1000).toFixed(1)}k Cr
+                            </text>
+
+                            {/* Center Zero Baseline */}
+                            <line
+                                x1={padding.left}
+                                x2={chartWidth - padding.right}
+                                y1={zeroY}
+                                y2={zeroY}
+                                stroke="var(--border-strong, #cbd5e1)"
+                                strokeWidth="1.5"
+                            />
+                            <text
+                                x={padding.left - 8}
+                                y={zeroY + 4}
+                                textAnchor="end"
+                                fontSize="10"
+                                fontWeight="800"
+                                fill="var(--chart-text, #64748b)"
+                                className="axis-mono-label"
+                            >
+                                ₹0
+                            </text>
+
+                            <line
+                                x1={padding.left}
+                                x2={chartWidth - padding.right}
+                                y1={padding.top + innerHeight - 10}
+                                y2={padding.top + innerHeight - 10}
+                                stroke="var(--chart-grid, #f1f5f9)"
+                                strokeDasharray="3 3"
+                            />
+                            <text
+                                x={padding.left - 8}
+                                y={padding.top + innerHeight - 6}
+                                textAnchor="end"
+                                fontSize="10"
+                                fontWeight="700"
+                                fill="var(--chart-text, #64748b)"
+                                className="axis-mono-label"
+                            >
+                                -₹{(maxAbsVal / 1000).toFixed(1)}k Cr
+                            </text>
+
+                            {/* Dual Day-wise Bars (FII and DII) */}
+                            {chartPoints.map((pt, idx) => {
+                                const isHovered = hoveredIndex === idx;
+                                return (
+                                    <g
+                                        key={pt.record.date || idx}
+                                        onMouseEnter={() => setHoveredIndex(idx)}
+                                        onMouseLeave={() => setHoveredIndex(null)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        {/* Hover Highlight Column */}
+                                        {isHovered && (
+                                            <rect
+                                                x={pt.centerX - barWidth * 1.6}
+                                                y={padding.top}
+                                                width={barWidth * 3.2}
+                                                height={innerHeight}
+                                                fill="var(--primary-blue-soft)"
+                                                rx="4"
+                                            />
+                                        )}
+
+                                        {/* FII Bar */}
+                                        <rect
+                                            x={pt.fiiX}
+                                            y={pt.fiiY}
+                                            width={barWidth}
+                                            height={pt.fiiH}
+                                            rx="2"
+                                            fill={pt.fiiNet >= 0 ? 'var(--emerald-green, #10b981)' : 'var(--crimson-red, #ef4444)'}
+                                            opacity={isHovered ? 1 : 0.88}
+                                        />
+
+                                        {/* DII Bar */}
+                                        <rect
+                                            x={pt.diiX}
+                                            y={pt.diiY}
+                                            width={barWidth}
+                                            height={pt.diiH}
+                                            rx="2"
+                                            fill={pt.diiNet >= 0 ? '#06b6d4' : '#f59e0b'}
+                                            opacity={isHovered ? 1 : 0.88}
+                                        />
+
+                                        {/* X Axis Date Tick (every 2-3 items) */}
+                                        {(chartPoints.length <= 15 || idx % 2 === 0) && (
+                                            <text
+                                                x={pt.centerX}
+                                                y={padding.top + innerHeight + 16}
+                                                textAnchor="middle"
+                                                fontSize="9.5"
+                                                fontWeight="600"
+                                                fill="var(--chart-text, #64748b)"
+                                                className="axis-mono-label"
+                                            >
+                                                {pt.dateLabel}
+                                            </text>
+                                        )}
+                                    </g>
+                                );
+                            })}
+                        </svg>
+
+                        {/* Interactive Hover HUD */}
+                        {hoveredIndex != null && chartPoints[hoveredIndex] && (
+                            <div className="fii-hover-hud">
+                                <strong>{chartPoints[hoveredIndex].record.date}</strong>
+                                <span>
+                                    FII Net: <strong className={chartPoints[hoveredIndex].fiiNet >= 0 ? 'text-up' : 'text-down'}>
+                                        {formatCr(chartPoints[hoveredIndex].fiiNet)}
+                                    </strong>
+                                </span>
+                                <span>
+                                    DII Net: <strong className={chartPoints[hoveredIndex].diiNet >= 0 ? 'text-up' : 'text-down'}>
+                                        {formatCr(chartPoints[hoveredIndex].diiNet)}
+                                    </strong>
+                                </span>
+                                <span>
+                                    Total Net: <strong className={chartPoints[hoveredIndex].record.total_net_value >= 0 ? 'text-up' : 'text-down'}>
+                                        {formatCr(chartPoints[hoveredIndex].record.total_net_value)}
+                                    </strong>
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Moneycontrol-style Tabular Data */}
+            <div className="fii-dii-table-shell">
+                <div className="table-head-row">
+                    <h3 className="table-title">Day-Wise Institutional Breakdown (₹ Cr)</h3>
+                </div>
+                <div className="fii-table-scroll">
+                    <table className="fii-dii-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>FII Buy (₹ Cr)</th>
+                                <th>FII Sell (₹ Cr)</th>
+                                <th>FII Net (₹ Cr)</th>
+                                <th>DII Buy (₹ Cr)</th>
+                                <th>DII Sell (₹ Cr)</th>
+                                <th>DII Net (₹ Cr)</th>
+                                <th>Combined Net</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {records.map((r, idx) => (
+                                <tr key={r.date || idx}>
+                                    <td className="date-cell">{r.date}</td>
+                                    <td className="mono-num">{Number(r.fii_buy_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td className="mono-num">{Number(r.fii_sell_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td>
+                                        <span className={`fii-net-pill ${r.fii_net_value >= 0 ? 'up' : 'down'}`}>
+                                            {formatCr(r.fii_net_value)}
+                                        </span>
+                                    </td>
+                                    <td className="mono-num">{Number(r.dii_buy_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td className="mono-num">{Number(r.dii_sell_value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td>
+                                        <span className={`fii-net-pill ${r.dii_net_value >= 0 ? 'up' : 'down'}`}>
+                                            {formatCr(r.dii_net_value)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span className={`fii-net-pill combined ${r.total_net_value >= 0 ? 'up' : 'down'}`}>
+                                            {formatCr(r.total_net_value)}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+export default FiiDiiActivity;

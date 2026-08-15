@@ -60,5 +60,6 @@ export const getTopMovers = () => api.get('/stocks/top-movers/');
 export const getPortfolio = () => api.get('/portfolio/');
 export const addPortfolioItem = (data) => api.post('/portfolio/', data);
 export const deletePortfolioItem = (id) => api.delete(`/portfolio/${id}/`);
+export const getFiiDiiActivity = (days = 30) => api.get(`/market/fii-dii/?days=${days}`);
 
 export default api;
