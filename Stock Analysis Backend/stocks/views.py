@@ -556,12 +556,15 @@ def analyze_stock(request, symbol):
             macd=_sanitize_val(result['macd']),
         )
 
-        # Compute Prev Day High/Low and 1W / 1M / 3M (Quarter) Highs from history
+        # Compute Prev Day High/Low and 1W / 1M / 3M (Quarter) Highs & Lows from history
         prev_day_high = None
         prev_day_low = None
         week_high = None
+        week_low = None
         month_high = None
+        month_low = None
         quarter_high = None
+        quarter_low = None
 
         if history.exists():
             history_list = list(history)
@@ -601,10 +604,13 @@ def analyze_stock(request, symbol):
 
             if week_records:
                 week_high = max([_clean_float(h.high or h.close_price) for h in week_records])
+                week_low = min([_clean_float(h.low or h.close_price) for h in week_records])
             if month_records:
                 month_high = max([_clean_float(h.high or h.close_price) for h in month_records])
+                month_low = min([_clean_float(h.low or h.close_price) for h in month_records])
             if quarter_records:
                 quarter_high = max([_clean_float(h.high or h.close_price) for h in quarter_records])
+                quarter_low = min([_clean_float(h.low or h.close_price) for h in quarter_records])
 
         info = {}
         try:
@@ -632,8 +638,11 @@ def analyze_stock(request, symbol):
             'prev_day_high': _sanitize_val(prev_day_high),
             'prev_day_low': _sanitize_val(prev_day_low),
             'week_high': _sanitize_val(week_high),
+            'week_low': _sanitize_val(week_low),
             'month_high': _sanitize_val(month_high),
+            'month_low': _sanitize_val(month_low),
             'quarter_high': _sanitize_val(quarter_high),
+            'quarter_low': _sanitize_val(quarter_low),
         }
 
         # Sanitize prediction numbers

@@ -431,10 +431,10 @@ function Analysis() {
                                                 </div>
                                             </div>
 
-                                            {/* Periodic Highs Matrix (1W / 1M / 3M Quarter High) */}
+                                            {/* Periodic Range Monitor (1W / 1M / 3M Quarter Highs & Lows) */}
                                             <div className="period-highs-matrix">
                                                 <span className="risk-title" style={{ marginBottom: '6px', display: 'block' }}>
-                                                    PERIODIC HIGH BREAKOUT MONITOR
+                                                    PERIODIC RANGE MONITOR (HIGHS & LOWS)
                                                 </span>
                                                 <div className="period-highs-grid">
                                                     {/* 1-Week High */}
@@ -494,6 +494,69 @@ function Analysis() {
                                                                 return (
                                                                     <span className={`period-chip ${isNewHigh ? 'green' : 'red'}`}>
                                                                         {isNewHigh ? 'NEW HIGH ▲' : `${diff.toFixed(2)}%`}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 1-Week Low */}
+                                                    <div className="period-high-item">
+                                                        <span className="period-label">1-WEEK LOW</span>
+                                                        <div className="period-val-row">
+                                                            <strong className="period-num">
+                                                                {analysis.fundamentals.week_low != null ? `₹${formatNumber(analysis.fundamentals.week_low, 2)}` : '—'}
+                                                            </strong>
+                                                            {analysis.fundamentals.week_low != null && (() => {
+                                                                const wl = num(analysis.fundamentals.week_low);
+                                                                const cur = num(analysis.current_price);
+                                                                const isNewLow = cur <= wl;
+                                                                const diff = ((cur - wl) / wl) * 100;
+                                                                return (
+                                                                    <span className={`period-chip ${isNewLow ? 'red' : 'green'}`}>
+                                                                        {isNewLow ? 'NEW LOW ▼' : `+${diff.toFixed(2)}%`}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 1-Month Low */}
+                                                    <div className="period-high-item">
+                                                        <span className="period-label">1-MONTH LOW</span>
+                                                        <div className="period-val-row">
+                                                            <strong className="period-num">
+                                                                {analysis.fundamentals.month_low != null ? `₹${formatNumber(analysis.fundamentals.month_low, 2)}` : '—'}
+                                                            </strong>
+                                                            {analysis.fundamentals.month_low != null && (() => {
+                                                                const ml = num(analysis.fundamentals.month_low);
+                                                                const cur = num(analysis.current_price);
+                                                                const isNewLow = cur <= ml;
+                                                                const diff = ((cur - ml) / ml) * 100;
+                                                                return (
+                                                                    <span className={`period-chip ${isNewLow ? 'red' : 'green'}`}>
+                                                                        {isNewLow ? 'NEW LOW ▼' : `+${diff.toFixed(2)}%`}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 1-Quarter Low (3M) */}
+                                                    <div className="period-high-item">
+                                                        <span className="period-label">1-QUARTER LOW (3M)</span>
+                                                        <div className="period-val-row">
+                                                            <strong className="period-num">
+                                                                {analysis.fundamentals.quarter_low != null ? `₹${formatNumber(analysis.fundamentals.quarter_low, 2)}` : '—'}
+                                                            </strong>
+                                                            {analysis.fundamentals.quarter_low != null && (() => {
+                                                                const ql = num(analysis.fundamentals.quarter_low);
+                                                                const cur = num(analysis.current_price);
+                                                                const isNewLow = cur <= ql;
+                                                                const diff = ((cur - ql) / ql) * 100;
+                                                                return (
+                                                                    <span className={`period-chip ${isNewLow ? 'red' : 'green'}`}>
+                                                                        {isNewLow ? 'NEW LOW ▼' : `+${diff.toFixed(2)}%`}
                                                                     </span>
                                                                 );
                                                             })()}
