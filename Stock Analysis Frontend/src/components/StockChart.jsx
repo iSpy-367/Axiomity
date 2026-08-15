@@ -14,6 +14,7 @@ function StockChart({
     range: propRange,
     onRangeChange,
     initialToggles = {},
+    compact = false,
 }) {
     // 1. Data Normalization
     const rawHistory = useMemo(() => {
@@ -297,7 +298,7 @@ function StockChart({
     return (
         <div className="axiomity-chart-container">
             {/* Top Toolbar: Time Range Selector + Overlays + Candlestick/Line Toggle */}
-            <div className="chart-controls-bar">
+            <div className={`chart-controls-bar ${compact ? 'compact-mode' : ''}`}>
                 {/* 1. Time Range Selector Tabs */}
                 <div className="chart-range-pills">
                     {TIME_RANGES.map((r) => (
@@ -334,52 +335,56 @@ function StockChart({
                         </button>
                     </div>
 
-                    {/* Indicator Toggles */}
-                    <button
-                        type="button"
-                        className={`chart-pill-btn ${toggles.ma20 ? 'active' : ''}`}
-                        onClick={() => toggleFeature('ma20')}
-                        title="20-Day Simple Moving Average"
-                    >
-                        <span className="legend-dot" style={{ background: '#f59e0b' }}></span>
-                        MA 20
-                    </button>
-                    <button
-                        type="button"
-                        className={`chart-pill-btn ${toggles.ma50 ? 'active' : ''}`}
-                        onClick={() => toggleFeature('ma50')}
-                        title="50-Day Simple Moving Average"
-                    >
-                        <span className="legend-dot" style={{ background: '#8b5cf6' }}></span>
-                        MA 50
-                    </button>
-                    <button
-                        type="button"
-                        className={`chart-pill-btn ${toggles.bollinger ? 'active' : ''}`}
-                        onClick={() => toggleFeature('bollinger')}
-                        title="Bollinger Bands (20, 2)"
-                    >
-                        <span className="legend-dot" style={{ background: '#06b6d4' }}></span>
-                        Bollinger
-                    </button>
-                    <button
-                        type="button"
-                        className={`chart-pill-btn ${toggles.srLevels ? 'active' : ''}`}
-                        onClick={() => toggleFeature('srLevels')}
-                        title="Support & Resistance Zones"
-                    >
-                        <span className="legend-dot" style={{ background: '#64748b' }}></span>
-                        S/R
-                    </button>
-                    <button
-                        type="button"
-                        className={`chart-pill-btn ${toggles.volume ? 'active' : ''}`}
-                        onClick={() => toggleFeature('volume')}
-                        title="Volume Subchart"
-                    >
-                        <span className="legend-dot" style={{ background: '#10b981' }}></span>
-                        Vol
-                    </button>
+                    {!compact && (
+                        <>
+                            {/* Indicator Toggles */}
+                            <button
+                                type="button"
+                                className={`chart-pill-btn ${toggles.ma20 ? 'active' : ''}`}
+                                onClick={() => toggleFeature('ma20')}
+                                title="20-Day Simple Moving Average"
+                            >
+                                <span className="legend-dot" style={{ background: '#f59e0b' }}></span>
+                                MA 20
+                            </button>
+                            <button
+                                type="button"
+                                className={`chart-pill-btn ${toggles.ma50 ? 'active' : ''}`}
+                                onClick={() => toggleFeature('ma50')}
+                                title="50-Day Simple Moving Average"
+                            >
+                                <span className="legend-dot" style={{ background: '#8b5cf6' }}></span>
+                                MA 50
+                            </button>
+                            <button
+                                type="button"
+                                className={`chart-pill-btn ${toggles.bollinger ? 'active' : ''}`}
+                                onClick={() => toggleFeature('bollinger')}
+                                title="Bollinger Bands (20, 2)"
+                            >
+                                <span className="legend-dot" style={{ background: '#06b6d4' }}></span>
+                                Bollinger
+                            </button>
+                            <button
+                                type="button"
+                                className={`chart-pill-btn ${toggles.srLevels ? 'active' : ''}`}
+                                onClick={() => toggleFeature('srLevels')}
+                                title="Support & Resistance Zones"
+                            >
+                                <span className="legend-dot" style={{ background: '#64748b' }}></span>
+                                S/R
+                            </button>
+                            <button
+                                type="button"
+                                className={`chart-pill-btn ${toggles.volume ? 'active' : ''}`}
+                                onClick={() => toggleFeature('volume')}
+                                title="Volume Subchart"
+                            >
+                                <span className="legend-dot" style={{ background: '#10b981' }}></span>
+                                Vol
+                            </button>
+                        </>
+                    )}
 
                     {/* Reset Zoom Button */}
                     {isZoomed && (
@@ -395,54 +400,56 @@ function StockChart({
                 </div>
             </div>
 
-            {/* Monospace OHLCV Tooltip HUD */}
-            <div className="chart-hud-fintech">
-                <div className="hud-date-tag">
-                    <span className="hud-label">DATE</span>
-                    <strong className="hud-mono-val">{activePoint.date || '—'}</strong>
-                </div>
-                {isPrediction ? (
-                    <div className="hud-metric-chip forecast">
-                        <span className="hud-label">FORECAST</span>
-                        <strong className="hud-mono-val">₹{Number(activePoint.predicted_price).toFixed(2)}</strong>
+            {/* Monospace OHLCV Tooltip HUD (Only show when hovering or in full mode) */}
+            {(!compact || hoveredIndex !== null) && (
+                <div className="chart-hud-fintech">
+                    <div className="hud-date-tag">
+                        <span className="hud-label">DATE</span>
+                        <strong className="hud-mono-val">{activePoint.date || '—'}</strong>
                     </div>
-                ) : (
-                    <div className="hud-metrics-row">
-                        <div className="hud-metric-chip">
-                            <span className="hud-label">O</span>
-                            <span className="hud-mono-val">₹{Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price || 0).toFixed(2)}</span>
+                    {isPrediction ? (
+                        <div className="hud-metric-chip forecast">
+                            <span className="hud-label">FORECAST</span>
+                            <strong className="hud-mono-val">₹{Number(activePoint.predicted_price).toFixed(2)}</strong>
                         </div>
-                        <div className="hud-metric-chip">
-                            <span className="hud-label">H</span>
-                            <span className="hud-mono-val">₹{Number(activePoint.high != null ? activePoint.high : activePoint.close_price || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="hud-metric-chip">
-                            <span className="hud-label">L</span>
-                            <span className="hud-mono-val">₹{Number(activePoint.low != null ? activePoint.low : activePoint.close_price || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="hud-metric-chip">
-                            <span className="hud-label">C</span>
-                            <span className={`hud-mono-val ${Number(activePoint.close_price) >= Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price) ? 'text-up' : 'text-down'}`}>
-                                ₹{Number(activePoint.close_price || 0).toFixed(2)}
-                            </span>
-                        </div>
-                        {priceChange != null && (
+                    ) : (
+                        <div className="hud-metrics-row">
                             <div className="hud-metric-chip">
-                                <span className="hud-label">CHG</span>
-                                <span className={`hud-mono-val ${priceChange >= 0 ? 'text-up' : 'text-down'}`}>
-                                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)} ({((priceChange / Number(prevPoint.close_price)) * 100).toFixed(2)}%)
+                                <span className="hud-label">O</span>
+                                <span className="hud-mono-val">₹{Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="hud-metric-chip">
+                                <span className="hud-label">H</span>
+                                <span className="hud-mono-val">₹{Number(activePoint.high != null ? activePoint.high : activePoint.close_price || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="hud-metric-chip">
+                                <span className="hud-label">L</span>
+                                <span className="hud-mono-val">₹{Number(activePoint.low != null ? activePoint.low : activePoint.close_price || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="hud-metric-chip">
+                                <span className="hud-label">C</span>
+                                <span className={`hud-mono-val ${Number(activePoint.close_price) >= Number(activePoint.open_price != null ? activePoint.open_price : activePoint.close_price) ? 'text-up' : 'text-down'}`}>
+                                    ₹{Number(activePoint.close_price || 0).toFixed(2)}
                                 </span>
                             </div>
-                        )}
-                        <div className="hud-metric-chip">
-                            <span className="hud-label">VOL</span>
-                            <span className="hud-mono-val">
-                                {activePoint.volume ? (Number(activePoint.volume) >= 10000000 ? `${(Number(activePoint.volume) / 10000000).toFixed(2)} Cr` : `${(Number(activePoint.volume) / 100000).toFixed(2)} L`) : '—'}
-                            </span>
+                            {priceChange != null && (
+                                <div className="hud-metric-chip">
+                                    <span className="hud-label">CHG</span>
+                                    <span className={`hud-mono-val ${priceChange >= 0 ? 'text-up' : 'text-down'}`}>
+                                        {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)} ({((priceChange / Number(prevPoint.close_price)) * 100).toFixed(2)}%)
+                                    </span>
+                                </div>
+                            )}
+                            <div className="hud-metric-chip">
+                                <span className="hud-label">VOL</span>
+                                <span className="hud-mono-val">
+                                    {activePoint.volume ? (Number(activePoint.volume) >= 10000000 ? `${(Number(activePoint.volume) / 10000000).toFixed(2)} Cr` : `${(Number(activePoint.volume) / 100000).toFixed(2)} L`) : '—'}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {/* Interactive SVG Chart */}
             <div className="svg-chart-wrapper" onWheel={handleWheel}>

@@ -3156,3 +3156,63 @@ body {
   border: 1px solid var(--crimson-red-border);
 }
 
+/* Benchmark Header Points & Compact Chart Streamlining */
+.index-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.index-header-points {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.index-points-num {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.index-points-badge {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.index-points-badge.bullish {
+  background: var(--emerald-green-soft);
+  color: var(--emerald-green-text);
+  border: 1px solid var(--emerald-green-border);
+}
+
+.index-points-badge.bearish {
+  background: var(--crimson-red-soft);
+  color: var(--crimson-red-text);
+  border: 1px solid var(--crimson-red-border);
+}
+
+.chart-controls-bar.compact-mode {
+  padding: 8px 12px;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.chart-controls-bar.compact-mode .range-pill-btn,
+.chart-controls-bar.compact-mode .chart-pill-btn {
+  padding: 4px 9px;
+  font-size: 0.74rem;
+}
+
+

@@ -126,6 +126,24 @@ function Dashboard() {
             month: 'short',
             year: 'numeric',
         });
+    const getIndexPoints = (indexData) => {
+        if (!indexData) return null;
+        const history = Array.isArray(indexData) ? indexData : (indexData.history || []);
+        if (!history || history.length === 0) return null;
+        
+        const latest = history[history.length - 1];
+        const prev = history.length > 1 ? history[history.length - 2] : null;
+        
+        const currentPrice = Number(latest.close_price != null ? latest.close_price : (indexData.current_price || 0));
+        const prevPrice = prev ? Number(prev.close_price) : currentPrice;
+        const changeAmt = currentPrice - prevPrice;
+        const changePct = prevPrice > 0 ? (changeAmt / prevPrice) * 100 : 0;
+        
+        return {
+            points: currentPrice,
+            change: changeAmt,
+            changePct: changePct
+        };
     };
 
     return (
@@ -185,18 +203,35 @@ function Dashboard() {
                 <section className="index-graphs-grid">
                     {/* Nifty 50 Card */}
                     <div className="index-card">
-                        <div className="card-header">
+                        <div className="card-header index-card-header">
                             <div>
                                 <p className="eyebrow">NIFTY 50</p>
                                 <h2>Market benchmark</h2>
                             </div>
+
+                            {(() => {
+                                const stats = getIndexPoints(nifty50Data);
+                                if (!stats) return null;
+                                const isUp = stats.change >= 0;
+                                return (
+                                    <div className="index-header-points">
+                                        <strong className="index-points-num">
+                                            ₹{stats.points.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </strong>
+                                        <span className={`index-points-badge ${isUp ? 'bullish' : 'bearish'}`}>
+                                            {isUp ? '▲ +' : '▼ '}
+                                            {stats.change.toFixed(2)} ({stats.changePct.toFixed(2)}%)
+                                        </span>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         {indexLoading ? (
-                            <div style={{ height: '360px', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                            <div style={{ height: '320px', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '0.9rem' }}>
                                 Loading Nifty 50 chart…
                             </div>
                         ) : nifty50Data ? (
-                            <StockChart data={nifty50Data} />
+                            <StockChart data={nifty50Data} compact={true} />
                         ) : (
                             <p style={{ color: '#94a3b8', padding: '24px 0', textAlign: 'center' }}>
                                 Nifty 50 data is temporarily unavailable.
@@ -206,18 +241,35 @@ function Dashboard() {
 
                     {/* Nifty Bank Card */}
                     <div className="index-card">
-                        <div className="card-header">
+                        <div className="card-header index-card-header">
                             <div>
                                 <p className="eyebrow">NIFTY BANK</p>
                                 <h2>Banking index</h2>
                             </div>
+
+                            {(() => {
+                                const stats = getIndexPoints(bankNiftyData);
+                                if (!stats) return null;
+                                const isUp = stats.change >= 0;
+                                return (
+                                    <div className="index-header-points">
+                                        <strong className="index-points-num">
+                                            ₹{stats.points.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </strong>
+                                        <span className={`index-points-badge ${isUp ? 'bullish' : 'bearish'}`}>
+                                            {isUp ? '▲ +' : '▼ '}
+                                            {stats.change.toFixed(2)} ({stats.changePct.toFixed(2)}%)
+                                        </span>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         {indexLoading ? (
-                            <div style={{ height: '360px', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                            <div style={{ height: '320px', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '0.9rem' }}>
                                 Loading Bank Nifty chart…
                             </div>
                         ) : bankNiftyData ? (
-                            <StockChart data={bankNiftyData} />
+                            <StockChart data={bankNiftyData} compact={true} />
                         ) : (
                             <p style={{ color: '#94a3b8', padding: '24px 0', textAlign: 'center' }}>
                                 Bank Nifty data is temporarily unavailable.
