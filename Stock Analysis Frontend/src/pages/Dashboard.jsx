@@ -132,15 +132,15 @@ function Dashboard() {
         if (!indexData) return null;
         const history = Array.isArray(indexData) ? indexData : (indexData.history || []);
         if (!history || history.length === 0) return null;
-        
+
         const latest = history[history.length - 1];
         const prev = history.length > 1 ? history[history.length - 2] : null;
-        
+
         const currentPrice = Number(latest.close_price != null ? latest.close_price : (indexData.current_price || 0));
         const prevPrice = prev ? Number(prev.close_price) : currentPrice;
         const changeAmt = currentPrice - prevPrice;
         const changePct = prevPrice > 0 ? (changeAmt / prevPrice) * 100 : 0;
-        
+
         return {
             points: currentPrice,
             change: changeAmt,
@@ -158,7 +158,7 @@ function Dashboard() {
                     <div className="hero-copy">
                         <p className="eyebrow">AXIOMITY • INTELLIGENT INVESTING</p>
                         <h1>Trade with clarity.</h1>
-                        <p>Review live market movers, Nifty index trends, and manage your portfolio from one premium trading workspace.</p>
+                        <p>Review live market movers, Nifty index trends, and manage your portfolio.</p>
                     </div>
 
                     {/* Live Market Clock & Refresh Desk */}

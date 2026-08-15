@@ -3203,16 +3203,38 @@ body {
   border: 1px solid var(--crimson-red-border);
 }
 
+.chart-controls-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 12px;
+  column-gap: 16px;
+  margin-bottom: 14px;
+}
+
 .chart-controls-bar.compact-mode {
-  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
-  margin-bottom: 8px;
+  padding: 6px 0 10px;
+  margin-bottom: 12px;
+}
+
+.chart-controls-bar.compact-mode .chart-range-pills {
+  margin-bottom: 4px;
+}
+
+.chart-controls-bar.compact-mode .chart-toggles-group {
+  margin-top: 2px;
 }
 
 .chart-controls-bar.compact-mode .range-pill-btn,
 .chart-controls-bar.compact-mode .chart-pill-btn {
-  padding: 4px 9px;
-  font-size: 0.74rem;
+  padding: 5px 11px;
+  font-size: 0.76rem;
 }
+
 
 
