@@ -3402,3 +3402,56 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   font-weight: 800;
 }
+
+/* Inline Portfolio Edit Buttons */
+.btn-edit-holding {
+  background: var(--bg-muted);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-edit-holding:hover {
+  background: var(--bg-card);
+  border-color: var(--primary-blue);
+  color: var(--primary-blue);
+}
+
+.btn-save-edit {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-save-edit:hover {
+  opacity: 0.9;
+}
+
+.btn-cancel-edit {
+  background: var(--bg-muted);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-cancel-edit:hover {
+  color: var(--text-primary);
+}

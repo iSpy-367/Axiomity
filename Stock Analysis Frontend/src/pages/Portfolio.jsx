@@ -6,6 +6,7 @@ import {
     deletePortfolioItem,
     addPortfolioItem,
     exitPortfolioItem,
+    updatePortfolioItem,
     searchStocks
 } from '../services/api';
 
@@ -55,6 +56,16 @@ function Portfolio() {
     const [filterQuery, setFilterQuery] = useState('');
     const [expandedItemId, setExpandedItemId] = useState(null);
     const [activeHoldingsTab, setActiveHoldingsTab] = useState('active'); // 'active' | 'exited'
+
+    // Manual Edit State
+    const [editingItemId, setEditingItemId] = useState(null);
+    const [editForm, setEditForm] = useState({
+        quantity: 1,
+        buy_price: '',
+        buy_date: '',
+        sell_date: '',
+        exit_price: ''
+    });
 
     // Typeahead state for Quick Entry
     const [suggestions, setSuggestions] = useState([]);
@@ -176,6 +187,41 @@ function Portfolio() {
             await loadPortfolio();
         } catch (err) {
             setError(err.response?.data?.detail || 'Unable to exit position.');
+        }
+    };
+
+    const handleStartEdit = (item) => {
+        setEditingItemId(item.id);
+        setEditForm({
+            quantity: item.quantity,
+            buy_price: item.buy_price,
+            buy_date: item.buy_date || getTodayDateStr(),
+            sell_date: item.sell_date || '',
+            exit_price: item.exit_price || ''
+        });
+    };
+
+    const handleSaveEdit = async (id) => {
+        setMessage('');
+        setError('');
+        try {
+            const payload = {
+                quantity: Number(editForm.quantity),
+                buy_price: Number(editForm.buy_price),
+                buy_date: editForm.buy_date || null
+            };
+            if (editForm.sell_date) {
+                payload.sell_date = editForm.sell_date;
+            }
+            if (editForm.exit_price) {
+                payload.exit_price = Number(editForm.exit_price);
+            }
+            await updatePortfolioItem(id, payload);
+            setMessage('Position updated successfully.');
+            setEditingItemId(null);
+            await loadPortfolio();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Unable to update position.');
         }
     };
 
@@ -352,6 +398,7 @@ function Portfolio() {
                                 <div className="holdings-list-shell">
                                     {displayedPositions.map((item) => {
                                         const isExited = item.status === 'exited';
+                                        const isEditingThisItem = editingItemId === item.id;
                                         const invested = (item.buy_price || 0) * item.quantity;
                                         const currentValue = isExited
                                             ? (item.exit_price || item.buy_price || 0) * item.quantity
@@ -420,62 +467,160 @@ function Portfolio() {
                                                 {/* Expanded Details & Actions Panel */}
                                                 {isExpanded && (
                                                     <div className="holding-expanded-actions">
-                                                        <div className="holding-expanded-left" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                                                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                                {item.display_name || item.name || item.symbol}
+                                                        {isEditingThisItem ? (
+                                                            /* Inline Edit Form */
+                                                            <div className="inline-edit-panel" style={{ width: '100%', padding: '10px 0' }}>
+                                                                <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--primary-blue)', marginBottom: '10px' }}>
+                                                                    Edit Position — {item.symbol}
+                                                                </div>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '12px' }}>
+                                                                    <div>
+                                                                        <label className="fintech-input-label">Quantity</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            value={editForm.quantity}
+                                                                            onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                                                                            className="fintech-form-input"
+                                                                            style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="fintech-input-label">Buy Price (₹)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={editForm.buy_price}
+                                                                            onChange={(e) => setEditForm({ ...editForm, buy_price: e.target.value })}
+                                                                            className="fintech-form-input"
+                                                                            style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="fintech-input-label">Buy Date</label>
+                                                                        <input
+                                                                            type="date"
+                                                                            value={editForm.buy_date}
+                                                                            onChange={(e) => setEditForm({ ...editForm, buy_date: e.target.value })}
+                                                                            className="fintech-form-input"
+                                                                            style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                                                                        />
+                                                                    </div>
+                                                                    {isExited && (
+                                                                        <>
+                                                                            <div>
+                                                                                <label className="fintech-input-label">Exit Price (₹)</label>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    step="0.01"
+                                                                                    value={editForm.exit_price}
+                                                                                    onChange={(e) => setEditForm({ ...editForm, exit_price: e.target.value })}
+                                                                                    className="fintech-form-input"
+                                                                                    style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label className="fintech-input-label">Sell / Exit Date</label>
+                                                                                <input
+                                                                                    type="date"
+                                                                                    value={editForm.sell_date}
+                                                                                    onChange={(e) => setEditForm({ ...editForm, sell_date: e.target.value })}
+                                                                                    className="fintech-form-input"
+                                                                                    style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                                                                                />
+                                                                            </div>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn-save-edit"
+                                                                        onClick={() => handleSaveEdit(item.id)}
+                                                                    >
+                                                                        Save Changes
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn-cancel-edit"
+                                                                        onClick={() => setEditingItemId(null)}
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                                                <span>{isExited ? 'Realized Exit Value' : 'Current Value'}: <strong>{formatCurrency(currentValue)}</strong></span>
-                                                                <span>Gross P&L: <strong style={{ color: grossPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{grossPnl >= 0 ? '+' : ''}{formatCurrency(grossPnl)}</strong></span>
-                                                                <span>Buy Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.buyChg)}</strong></span>
-                                                                <span>Sell Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.sellChg)}</strong></span>
-                                                                <span>Total Charges: <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(brokerage)}</strong></span>
-                                                                <span>Net P&L: <strong style={{ color: netPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}</strong></span>
-                                                                <span>Buy Date: <strong>{formatDateDisplay(item.buy_date) || '—'}</strong></span>
-                                                                {isExited && (
-                                                                    <span>Sell / Exit Date: <strong>{formatDateDisplay(item.sell_date) || '—'}</strong></span>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="holding-expanded-left" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                        {item.display_name || item.name || item.symbol}
+                                                                    </div>
+                                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                                                        <span>{isExited ? 'Realized Exit Value' : 'Current Value'}: <strong>{formatCurrency(currentValue)}</strong></span>
+                                                                        <span>Gross P&L: <strong style={{ color: grossPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{grossPnl >= 0 ? '+' : ''}{formatCurrency(grossPnl)}</strong></span>
+                                                                        <span>Buy Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.buyChg)}</strong></span>
+                                                                        <span>Sell Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.sellChg)}</strong></span>
+                                                                        <span>Total Charges: <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(brokerage)}</strong></span>
+                                                                        <span>Net P&L: <strong style={{ color: netPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}</strong></span>
+                                                                        <span>Buy Date: <strong>{formatDateDisplay(item.buy_date) || '—'}</strong></span>
+                                                                        {isExited && (
+                                                                            <span>Sell / Exit Date: <strong>{formatDateDisplay(item.sell_date) || '—'}</strong></span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
 
-                                                        <div className="holding-expanded-btns">
-                                                            <Link
-                                                                to={`/analysis?symbol=${item.symbol}`}
-                                                                className="btn-analyze-holding"
-                                                            >
-                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                                                                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                                                                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                                                                </svg>
-                                                                Analyze Stock
-                                                            </Link>
+                                                                <div className="holding-expanded-btns">
+                                                                    <Link
+                                                                        to={`/analysis?symbol=${item.symbol}`}
+                                                                        className="btn-analyze-holding"
+                                                                    >
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                                                                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                                                                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                                                                        </svg>
+                                                                        Analyze Stock
+                                                                    </Link>
 
-                                                            {!isExited && (
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn-exit-holding"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleExit(item.id);
-                                                                    }}
-                                                                    title="Exit position and lock in realized P&L"
-                                                                >
-                                                                    Exit Position
-                                                                </button>
-                                                            )}
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn-edit-holding"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleStartEdit(item);
+                                                                        }}
+                                                                        title="Edit buy date, buy price, quantity, or sell date"
+                                                                    >
+                                                                        Edit Entry
+                                                                    </button>
 
-                                                            <button
-                                                                type="button"
-                                                                className="btn-delete-holding"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDelete(item.id);
-                                                                }}
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        </div>
+                                                                    {!isExited && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn-exit-holding"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleExit(item.id);
+                                                                            }}
+                                                                            title="Exit position and lock in realized P&L"
+                                                                        >
+                                                                            Exit Position
+                                                                        </button>
+                                                                    )}
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn-delete-holding"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDelete(item.id);
+                                                                        }}
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

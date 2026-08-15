@@ -71,12 +71,31 @@ class PortfolioListCreateView(generics.ListCreateAPIView):
         serializer.save(user=self.request.user)
 
 
-class PortfolioDetailView(generics.DestroyAPIView):
+class PortfolioDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PortfolioSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Portfolio.objects.filter(user=self.request.user)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'exited':
+            buy_price = instance.buy_price
+            exit_price = instance.exit_price or instance.stock.current_price or buy_price
+            qty = instance.quantity
+            invested = buy_price * qty
+            exit_val = exit_price * qty
+            gross = exit_val - invested
+            buy_brk = BUY_BROKERAGE_RATE * invested
+            sell_brk = SELL_BROKERAGE_RATE * exit_val
+            brk = round(buy_brk + sell_brk, 2)
+            net = round(gross - brk, 2)
+
+            instance.realized_gross_pnl = round(gross, 2)
+            instance.realized_brokerage = brk
+            instance.realized_net_pnl = net
+            instance.save()
 
 
 class PortfolioExitView(views.APIView):
