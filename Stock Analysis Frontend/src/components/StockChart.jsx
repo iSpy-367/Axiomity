@@ -131,11 +131,12 @@ function StockChart({
     }, [visibleData]);
 
     const width = 840;
-    const height = toggles.volume ? 490 : 410;
-    const padding = { top: 20, right: 30, bottom: 45, left: 75 };
-    const navHeight = 36;
-    const volumeHeight = toggles.volume ? 80 : 0;
-    const priceHeight = height - padding.top - padding.bottom - volumeHeight - navHeight - (toggles.volume ? 14 : 0);
+    const padding = { top: 14, right: 20, bottom: 12, left: 65 };
+    const navHeight = 28;
+    const dateHeight = 20;
+    const volumeHeight = toggles.volume ? 60 : 0;
+    const priceHeight = 240;
+    const height = padding.top + priceHeight + (toggles.volume ? volumeHeight + 10 : 0) + dateHeight + navHeight + padding.bottom;
     const innerWidth = width - padding.left - padding.right;
 
     const priceLows = visibleData.map(item => Number(item.low != null ? item.low : item.close_price));
@@ -434,7 +435,6 @@ function StockChart({
                     ref={svgRef}
                     viewBox={`0 0 ${width} ${height}`}
                     width="100%"
-                    height={height}
                     className="fintech-svg-chart interactive-chart"
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
@@ -459,7 +459,7 @@ function StockChart({
                         </clipPath>
                     </defs>
 
-                    <rect x="0" y="0" width={width} height={height} rx="12" fill="var(--chart-bg, #ffffff)" stroke="var(--chart-border, #e2e8f0)" strokeWidth="1" />
+                    <rect x="0" y="0" width={width} height={height} rx="8" fill="transparent" />
 
                     <g transform={`translate(${padding.left},${padding.top})`}>
                         {yTicks.map((tick) => (
@@ -773,7 +773,7 @@ function StockChart({
                         </g>
 
                         {rangeData.length > 5 && (() => {
-                            const navTop = priceHeight + (toggles.volume ? volumeHeight + 14 : 0) + 26;
+                            const navTop = priceHeight + (toggles.volume ? volumeHeight + 10 : 0) + dateHeight + 4;
                             const fullCloses = rangeData.map(c => Number(c.close_price || 0));
                             const navMin = Math.min(...fullCloses);
                             const navMax = Math.max(...fullCloses);

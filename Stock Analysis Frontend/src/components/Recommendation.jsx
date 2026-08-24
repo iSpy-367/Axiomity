@@ -61,8 +61,9 @@ function Recommendation({ data = {} }) {
             name: '50/200 DMA Trend',
             value: isGolden ? 'Golden Cross' : 'Death Cross',
             stance: isGolden ? 'Bullish' : 'Bearish',
-            detail: `50DMA: ₹${fiftyDayMa.toFixed(1)} | 200DMA: ₹${twoHundredDayMa.toFixed(1)}`,
+            detail: `50DMA: ₹${fiftyDayMa.toFixed(1)} · 200DMA: ₹${twoHundredDayMa.toFixed(1)}`,
             score: isGolden ? 1 : -1,
+            isDma: true
         });
     }
 
@@ -96,54 +97,58 @@ function Recommendation({ data = {} }) {
         (macdSignal && dmaCross && macdSignal.stance === 'Bearish' && dmaCross === 'Golden Cross');
 
     return (
-        <div className="fintech-card signal-scorecard-card">
-            <div className="scorecard-header">
-                <div>
-                    <span className="fintech-eyebrow">COMPOSITE SIGNAL SCORECARD</span>
-                    <h3 className="scorecard-title">Technical Consensus</h3>
-                </div>
-                <div className={`stance-badge ${stanceType}`}>
-                    {stance.toUpperCase()}
-                </div>
-            </div>
-
-            <div className="confidence-meter-box">
-                <div className="meter-label-row">
-                    <span className="meter-label">Indicator Agreement</span>
-                    <strong className="meter-val">{bullCount} Bull / {bearCount} Bear / {neutralCount} Neutral ({agreementPercentage}%)</strong>
-                </div>
-                <div className="agreement-bar-segmented">
-                    <div className="bar-seg bull-seg" style={{ width: `${(bullCount / totalSignals) * 100}%` }} title={`${bullCount} Bullish`}></div>
-                    <div className="bar-seg neutral-seg" style={{ width: `${(neutralCount / totalSignals) * 100}%` }} title={`${neutralCount} Neutral`}></div>
-                    <div className="bar-seg bear-seg" style={{ width: `${(bearCount / totalSignals) * 100}%` }} title={`${bearCount} Bearish`}></div>
-                </div>
-            </div>
-
-            {isDivergent && (
-                <div className="divergence-warning-ribbon">
-                    <div className="ribbon-icon">⚠️</div>
-                    <div className="ribbon-content">
-                        <strong>Divergence Detected</strong>
-                        <p>Momentum (MACD) and structural trend (Moving Averages) disagree.</p>
+        <div className="fintech-card signal-scorecard-card" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+                <div className="scorecard-header">
+                    <div>
+                        <span className="fintech-eyebrow">COMPOSITE SIGNAL SCORECARD</span>
+                        <h3 className="scorecard-title">Technical Consensus</h3>
+                    </div>
+                    <div className={`stance-badge ${stanceType}`}>
+                        {stance.toUpperCase()}
                     </div>
                 </div>
-            )}
 
-            <div className="scorecard-breakdown-list">
-                {signals.map((sig, idx) => (
-                    <div key={idx} className="scorecard-row">
-                        <div className="scorecard-metric-info">
-                            <span className="metric-name">{sig.name}</span>
-                            <span className="metric-detail-muted">{sig.detail}</span>
-                        </div>
-                        <div className="scorecard-metric-result">
-                            <span className="metric-val-mono">{sig.value}</span>
-                            <span className={`signal-chip ${sig.stance.toLowerCase()}`}>
-                                {sig.stance === 'Bullish' ? '▲ Bullish' : sig.stance === 'Bearish' ? '▼ Bearish' : '● Neutral'}
-                            </span>
+                <div className="confidence-meter-box">
+                    <div className="meter-label-row">
+                        <span className="meter-label">Indicator Agreement</span>
+                        <strong className="meter-val">{bullCount} Bull / {bearCount} Bear / {neutralCount} Neutral ({agreementPercentage}%)</strong>
+                    </div>
+                    <div className="agreement-bar-segmented">
+                        <div className="bar-seg bull-seg" style={{ width: `${(bullCount / totalSignals) * 100}%` }} title={`${bullCount} Bullish`}></div>
+                        <div className="bar-seg neutral-seg" style={{ width: `${(neutralCount / totalSignals) * 100}%` }} title={`${neutralCount} Neutral`}></div>
+                        <div className="bar-seg bear-seg" style={{ width: `${(bearCount / totalSignals) * 100}%` }} title={`${bearCount} Bearish`}></div>
+                    </div>
+                </div>
+
+                {isDivergent && (
+                    <div className="divergence-warning-ribbon">
+                        <div className="ribbon-icon">⚠️</div>
+                        <div className="ribbon-content">
+                            <strong>Divergence Detected</strong>
+                            <p>Momentum (MACD) and structural trend (Moving Averages) disagree.</p>
                         </div>
                     </div>
-                ))}
+                )}
+
+                <div className="scorecard-breakdown-list">
+                    {signals.map((sig, idx) => (
+                        <div key={idx} className="scorecard-row">
+                            <div className="scorecard-metric-info">
+                                <span className="metric-name">{sig.name}</span>
+                                <span className="metric-detail-muted">{sig.detail}</span>
+                            </div>
+                            <div className="scorecard-metric-result">
+                                {!sig.isDma && <span className="metric-val-mono">{sig.value}</span>}
+                                <span className={`signal-chip ${sig.stance.toLowerCase()}`}>
+                                    {sig.isDma
+                                        ? (sig.stance === 'Bullish' ? '▲ Golden Cross' : '▼ Death Cross')
+                                        : (sig.stance === 'Bullish' ? '▲ Bullish' : sig.stance === 'Bearish' ? '▼ Bearish' : '● Neutral')}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

@@ -196,6 +196,39 @@ def search_stocks(request):
     return Response({'results': results})
 
 
+def _adjust_split_anomaly(quote, symbol, raw_change, raw_change_pct):
+    if abs(raw_change_pct) <= 20.0:
+        return raw_change, raw_change_pct
+
+    # Anomaly beyond Indian exchange 20% maximum circuit band
+    try:
+        t = yf.Ticker(symbol)
+        splits = t.splits
+        if splits is not None and not splits.empty:
+            latest_split = float(splits.iloc[-1])
+            if latest_split > 1.0:
+                prev_close = _clean_float(quote.get('regularMarketPreviousClose'))
+                price = _clean_float(quote.get('regularMarketPrice'))
+                if prev_close > 0 and price > 0:
+                    adj_prev = prev_close / latest_split
+                    adj_change = round(price - adj_prev, 2)
+                    adj_pct = round((adj_change / adj_prev) * 100.0, 2)
+                    return adj_change, adj_pct
+
+        h = t.history(period='2d', auto_adjust=True)
+        if len(h) >= 2:
+            yesterday_close = float(h['Close'].iloc[-2])
+            today_close = float(h['Close'].iloc[-1])
+            if yesterday_close > 0:
+                adj_change = round(today_close - yesterday_close, 2)
+                adj_pct = round((adj_change / yesterday_close) * 100.0, 2)
+                return adj_change, adj_pct
+    except Exception as exc:
+        logger.warning(f"Error checking split anomaly for {symbol}: {exc}")
+
+    return raw_change, raw_change_pct
+
+
 def _load_top_active_quotes(count=500):
     india_query = screener.query.EquityQuery('and', [
         screener.query.EquityQuery('eq', ['region', 'in']),
@@ -272,13 +305,17 @@ def _load_top_active_quotes(count=500):
         short_symbol = symbol.split('.')[0] if '.' in symbol else symbol
         company_name = q.get('shortName') or q.get('longName') or short_symbol
 
+        raw_change = _clean_float(q.get('regularMarketChange'))
+        raw_change_pct = _clean_float(q.get('regularMarketChangePercent'))
+        change, change_percent = _adjust_split_anomaly(q, symbol, raw_change, raw_change_pct)
+
         active_quotes.append({
             'symbol': short_symbol,
             'name': company_name,
             'display_name': f'{company_name} ({short_symbol})',
             'current_price': price,
-            'change': _clean_float(q.get('regularMarketChange')),
-            'change_percent': _clean_float(q.get('regularMarketChangePercent')),
+            'change': change,
+            'change_percent': change_percent,
             'volume': int(_clean_float(q.get('regularMarketVolume'))),
             'exchange': exchange,
             'currency': q.get('currency') or '',
@@ -577,14 +614,36 @@ def analyze_stock(request, symbol):
         except Exception:
             info = {}
 
+        # 1. D/E ratio (convert from yfinance percentage to ratio e.g. 36.65% -> 0.37x)
+        raw_de = info.get('debtToEquity')
+        calc_de = round(float(raw_de) / 100.0, 2) if (raw_de is not None and _clean_float(raw_de) > 0) else _sanitize_val(raw_de)
+
+        # 2. ROE calculation (dynamic fallback if returnOnEquity is None)
+        calc_roe = _sanitize_val(info.get('returnOnEquity') or info.get('returnOnEquityTTM'))
+        if calc_roe is None:
+            bv = float(info.get('bookValue') or 0)
+            sh = float(info.get('sharesOutstanding') or 0)
+            ni = float(info.get('netIncomeToCommon') or 0)
+            if bv > 0 and sh > 0 and ni > 0:
+                calc_roe = round(ni / (bv * sh), 4)
+
+        # 3. Dividend Yield calculation (ensure clean % e.g. 0.46% instead of 46%)
+        cur_p = _clean_float(info.get('currentPrice') or info.get('regularMarketPrice') or stock.current_price)
+        div_rate = _clean_float(info.get('dividendRate'))
+        if div_rate > 0 and cur_p > 0:
+            calc_div_yield = round((div_rate / cur_p) * 100.0, 2)
+        else:
+            raw_dy = info.get('dividendYield')
+            calc_div_yield = round(float(raw_dy), 2) if raw_dy is not None else 0.0
+
         fundamentals = {
-            'roe': _sanitize_val(info.get('returnOnEquity') or info.get('returnOnEquityTTM')),
-            'debt_to_equity': _sanitize_val(info.get('debtToEquity')),
+            'roe': calc_roe,
+            'debt_to_equity': calc_de,
             'eps': _sanitize_val(info.get('trailingEps') or info.get('epsTrailingTwelveMonths') or info.get('forwardEps')),
             'sales': _sanitize_val(info.get('totalRevenue') or info.get('revenue') or info.get('grossProfits')),
             'operating_profit': _sanitize_val(info.get('operatingIncome') or info.get('ebitda') or info.get('operatingMargins')),
             'net_profit': _sanitize_val(info.get('netIncomeToCommon') or info.get('netIncome') or info.get('netProfitToCommonStockholders')),
-            'dividend_yield': _sanitize_val(info.get('dividendYield')),
+            'dividend_yield': calc_div_yield,
             'pb': _sanitize_val(info.get('priceToBook')),
             'pe': _sanitize_val(info.get('trailingPE') or info.get('forwardPE')),
             'fifty_two_week_high': _sanitize_val(info.get('fiftyTwoWeekHigh')),
@@ -612,6 +671,75 @@ def analyze_stock(request, symbol):
                     for p in prediction['predicted']
                 ]
 
+        corporate_actions = []
+        try:
+            splits = ticker.splits
+            if splits is not None and not splits.empty:
+                for dt, ratio in splits.tail(5).items():
+                    d_str = dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10]
+                    corporate_actions.append({
+                        'type': 'split',
+                        'date': d_str,
+                        'title': f'Stock Split (1:{int(ratio) if float(ratio).is_integer() else ratio})',
+                        'value': float(ratio)
+                    })
+            divs = ticker.dividends
+            if divs is not None and not divs.empty:
+                for dt, amt in divs.tail(5).items():
+                    d_str = dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10]
+                    corporate_actions.append({
+                        'type': 'dividend',
+                        'date': d_str,
+                        'title': f'Dividend ₹{amt:.2f}',
+                        'value': float(amt)
+                    })
+            corporate_actions.sort(key=lambda x: x['date'], reverse=True)
+        except Exception as exc:
+            logger.warning(f"Error fetching corporate actions for {stock.symbol}: {exc}")
+
+        upcoming_events = {
+            'earnings_dates': [],
+            'upcoming_ex_dividend_date': None,
+            'last_ex_dividend_date': None,
+            'earnings_avg': None,
+            'earnings_high': None,
+            'earnings_low': None,
+            'revenue_avg': None,
+            'revenue_high': None,
+            'revenue_low': None,
+        }
+        try:
+            import datetime
+            today = datetime.date.today()
+
+            cal = ticker.calendar
+            if isinstance(cal, dict):
+                ed = cal.get('Earnings Date') or cal.get('Earnings Dates')
+                if ed:
+                    dates_list = ed if isinstance(ed, (list, tuple)) else [ed]
+                    for d in dates_list:
+                        d_obj = d.date() if hasattr(d, 'date') else d
+                        d_str = d.strftime('%Y-%m-%d') if hasattr(d, 'strftime') else str(d)[:10]
+                        upcoming_events['earnings_dates'].append(d_str)
+
+                ex_div = cal.get('Ex-Dividend Date')
+                if ex_div:
+                    ex_div_obj = ex_div.date() if hasattr(ex_div, 'date') else ex_div
+                    ex_div_str = ex_div.strftime('%Y-%m-%d') if hasattr(ex_div, 'strftime') else str(ex_div)[:10]
+                    if isinstance(ex_div_obj, datetime.date) and ex_div_obj >= today:
+                        upcoming_events['upcoming_ex_dividend_date'] = ex_div_str
+                    else:
+                        upcoming_events['last_ex_dividend_date'] = ex_div_str
+
+                upcoming_events['earnings_avg'] = _sanitize_val(cal.get('Earnings Average'))
+                upcoming_events['earnings_high'] = _sanitize_val(cal.get('Earnings High'))
+                upcoming_events['earnings_low'] = _sanitize_val(cal.get('Earnings Low'))
+                upcoming_events['revenue_avg'] = _sanitize_val(cal.get('Revenue Average'))
+                upcoming_events['revenue_high'] = _sanitize_val(cal.get('Revenue High'))
+                upcoming_events['revenue_low'] = _sanitize_val(cal.get('Revenue Low'))
+        except Exception as exc:
+            logger.warning(f"Error parsing upcoming events for {stock.symbol}: {exc}")
+
         return Response({
             'symbol': _script_code(stock.symbol),
             'script_code': _script_code(stock.symbol),
@@ -619,6 +747,8 @@ def analyze_stock(request, symbol):
             'exchange': 'BSE' if stock.symbol.endswith('.BO') else 'NSE',
             'current_price': _sanitize_val(stock.current_price),
             'fundamentals': fundamentals,
+            'corporate_actions': corporate_actions,
+            'upcoming_events': upcoming_events,
             **result,
             'prediction': prediction,
         })

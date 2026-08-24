@@ -107,8 +107,8 @@ function Login() {
                         <div className="auth-feature-item">
                             <div className="auth-feature-icon">⚡</div>
                             <div className="auth-feature-text">
-                                <strong>Real-Time Market Data</strong>
-                                <span>Zero-delay price action across all NSE & BSE listed equities.</span>
+                                <strong>Refresh Time Market Data</strong>
+                                <span>Almost Zero delay price action across all NSE & BSE listed equities.</span>
                             </div>
                         </div>
                         <div className="auth-feature-item">
