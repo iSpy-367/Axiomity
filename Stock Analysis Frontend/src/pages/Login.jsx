@@ -58,7 +58,7 @@ function Login() {
                 <div className="auth-branding-content">
                     <div className="auth-branding-eyebrow">
                         <span className="live-pulse-dot" style={{ width: '7px', height: '7px' }}></span>
-                        NSE & BSE LIVE ANALYTICS
+                        NSE & BSE Real Time ANALYTICS
                     </div>
 
                     <h2 className="auth-branding-headline">

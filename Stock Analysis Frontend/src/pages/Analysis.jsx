@@ -9,7 +9,7 @@ const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'technical', label: 'Technical Analysis' },
     { key: 'fundamental', label: 'Fundamental Analysis' },
-    { key: 'actions', label: 'Corporate Actions & Splits' },
+    { key: 'actions', label: 'Corporate Actions' },
     { key: 'predicted', label: 'Predicted Direction' },
 ];
 
