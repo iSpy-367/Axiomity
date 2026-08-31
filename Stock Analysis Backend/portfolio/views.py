@@ -45,6 +45,27 @@ def _refresh_portfolio_prices(portfolio_items):
                     if latest_close > 0:
                         stock.current_price = latest_close
                         stock.save(update_fields=['current_price', 'last_updated'])
+
+                from stocks.models import StockHistory
+                for idx_date, row in hist.tail(5).iterrows():
+                    d = idx_date.date() if hasattr(idx_date, 'date') else idx_date
+                    close_val = float(row.get('Close', 0.0))
+                    open_val = float(row.get('Open', close_val))
+                    high_val = float(row.get('High', max(close_val, open_val)))
+                    low_val = float(row.get('Low', min(close_val, open_val)))
+                    vol_val = int(row.get('Volume', 0)) if not row.isna().get('Volume', False) else 0
+                    if close_val > 0:
+                        StockHistory.objects.update_or_create(
+                            stock=stock,
+                            date=d,
+                            defaults={
+                                'open_price': open_val,
+                                'close_price': close_val,
+                                'high': high_val,
+                                'low': low_val,
+                                'volume': vol_val,
+                            }
+                        )
         except Exception:
             pass
 

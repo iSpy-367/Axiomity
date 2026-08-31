@@ -200,7 +200,6 @@ def _adjust_split_anomaly(quote, symbol, raw_change, raw_change_pct):
     if abs(raw_change_pct) <= 20.0:
         return raw_change, raw_change_pct
 
-    # Anomaly beyond Indian exchange 20% maximum circuit band
     try:
         t = yf.Ticker(symbol)
         splits = t.splits
@@ -614,11 +613,11 @@ def analyze_stock(request, symbol):
         except Exception:
             info = {}
 
-        # 1. D/E ratio (convert from yfinance percentage to ratio e.g. 36.65% -> 0.37x)
+      
         raw_de = info.get('debtToEquity')
         calc_de = round(float(raw_de) / 100.0, 2) if (raw_de is not None and _clean_float(raw_de) > 0) else _sanitize_val(raw_de)
 
-        # 2. ROE calculation (dynamic fallback if returnOnEquity is None)
+        
         calc_roe = _sanitize_val(info.get('returnOnEquity') or info.get('returnOnEquityTTM'))
         if calc_roe is None:
             bv = float(info.get('bookValue') or 0)
@@ -627,7 +626,7 @@ def analyze_stock(request, symbol):
             if bv > 0 and sh > 0 and ni > 0:
                 calc_roe = round(ni / (bv * sh), 4)
 
-        # 3. Dividend Yield calculation (ensure clean % e.g. 0.46% instead of 46%)
+      
         cur_p = _clean_float(info.get('currentPrice') or info.get('regularMarketPrice') or stock.current_price)
         div_rate = _clean_float(info.get('dividendRate'))
         if div_rate > 0 and cur_p > 0:

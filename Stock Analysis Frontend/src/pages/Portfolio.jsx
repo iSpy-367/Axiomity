@@ -21,7 +21,7 @@ const ALLOC_COLORS = [
 const getTodayDateStr = () => new Date().toISOString().split('T')[0];
 
 const formatDateDisplay = (dateStr) => {
-    if (!dateStr) return null;
+    if (!dateStr) return '—';
     try {
         const d = new Date(dateStr);
         if (Number.isNaN(d.getTime())) return dateStr;
@@ -53,10 +53,16 @@ function Portfolio() {
     const [scriptBuyPrice, setScriptBuyPrice] = useState('');
     const [buyDate, setBuyDate] = useState(getTodayDateStr());
     const [filterQuery, setFilterQuery] = useState('');
-    const [expandedItemId, setExpandedItemId] = useState(null);
     const [activeHoldingsTab, setActiveHoldingsTab] = useState('active');
+    const [showAddModal, setShowAddModal] = useState(false);
 
-    const [editingItemId, setEditingItemId] = useState(null);
+    // Modals
+    const [exitModalItem, setExitModalItem] = useState(null);
+    const [exitPriceInput, setExitPriceInput] = useState('');
+    const [exitDateInput, setExitDateInput] = useState(getTodayDateStr());
+    const [submittingExit, setSubmittingExit] = useState(false);
+
+    const [editModalItem, setEditModalItem] = useState(null);
     const [editForm, setEditForm] = useState({
         quantity: 1,
         buy_price: '',
@@ -64,14 +70,17 @@ function Portfolio() {
         sell_date: '',
         exit_price: ''
     });
+    const [submittingEdit, setSubmittingEdit] = useState(false);
 
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const symbolInputRef = useRef(null);
 
+    // Position Groups
     const activePositions = portfolio.filter(item => item.status !== 'exited');
     const exitedPositions = portfolio.filter(item => item.status === 'exited');
 
+    // 100% Original Financial Calculations
     const totalInvested = activePositions.reduce((sum, item) => sum + (item.buy_price || 0) * item.quantity, 0);
     const totalCurrent = activePositions.reduce((sum, item) => sum + (item.current_price || 0) * item.quantity, 0);
     const totalActiveGrossPnl = totalCurrent - totalInvested;
@@ -117,7 +126,7 @@ function Portfolio() {
         try {
             const response = await getPortfolio();
             setPortfolio(response.data || []);
-        } catch (err) {
+        } catch {
             setError('Unable to load portfolio data.');
         } finally {
             setLoading(false);
@@ -150,65 +159,6 @@ function Portfolio() {
         return () => clearTimeout(timer);
     }, [scriptSymbol]);
 
-    const handleDelete = async (id) => {
-        setMessage('');
-        setError('');
-        try {
-            await deletePortfolioItem(id);
-            setMessage('Position removed successfully.');
-            await loadPortfolio();
-        } catch (err) {
-            setError('Unable to delete position.');
-        }
-    };
-
-    const handleExit = async (id) => {
-        setMessage('');
-        setError('');
-        try {
-            await exitPortfolioItem(id);
-            setMessage('Position exited and realized P&L locked successfully.');
-            await loadPortfolio();
-        } catch (err) {
-            setError(err.response?.data?.detail || 'Unable to exit position.');
-        }
-    };
-
-    const handleStartEdit = (item) => {
-        setEditingItemId(item.id);
-        setEditForm({
-            quantity: item.quantity,
-            buy_price: item.buy_price,
-            buy_date: item.buy_date || getTodayDateStr(),
-            sell_date: item.sell_date || '',
-            exit_price: item.exit_price || ''
-        });
-    };
-
-    const handleSaveEdit = async (id) => {
-        setMessage('');
-        setError('');
-        try {
-            const payload = {
-                quantity: Number(editForm.quantity),
-                buy_price: Number(editForm.buy_price),
-                buy_date: editForm.buy_date || null
-            };
-            if (editForm.sell_date) {
-                payload.sell_date = editForm.sell_date;
-            }
-            if (editForm.exit_price) {
-                payload.exit_price = Number(editForm.exit_price);
-            }
-            await updatePortfolioItem(id, payload);
-            setMessage('Position updated successfully.');
-            setEditingItemId(null);
-            await loadPortfolio();
-        } catch (err) {
-            setError(err.response?.data?.detail || 'Unable to update position.');
-        }
-    };
-
     const handleSelectSuggestion = (item) => {
         setScriptSymbol(item.symbol);
         if (item.current_price) {
@@ -218,27 +168,146 @@ function Portfolio() {
         setShowSuggestions(false);
     };
 
+    const handleAddSubmit = async (e) => {
+        if (e) e.preventDefault();
+        setMessage('');
+        setError('');
+        if (!scriptSymbol.trim() || !scriptQty || !scriptBuyPrice) {
+            setError('Symbol, quantity and buy price are required.');
+            return;
+        }
+        try {
+            await addPortfolioItem({
+                symbol: scriptSymbol.trim().toUpperCase(),
+                quantity: Number(scriptQty),
+                buy_price: Number(scriptBuyPrice),
+                buy_date: buyDate || getTodayDateStr(),
+            });
+            setMessage(`${scriptSymbol.trim().toUpperCase()} successfully added to your holdings.`);
+            setScriptSymbol('');
+            setScriptQty(1);
+            setScriptBuyPrice('');
+            setShowAddModal(false);
+            await loadPortfolio();
+        } catch (err) {
+            setError(err.response?.data?.symbol || err.response?.data?.detail || 'Unable to add this script.');
+        }
+    };
+
+    const handleDelete = async (id, sym) => {
+        if (!window.confirm(`Are you sure you want to delete ${sym || 'this position'}?`)) return;
+        setMessage('');
+        setError('');
+        try {
+            await deletePortfolioItem(id);
+            setMessage('Position removed successfully.');
+            await loadPortfolio();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Unable to delete position.');
+        }
+    };
+
+    const handleOpenExitModal = (item) => {
+        setExitModalItem(item);
+        setExitPriceInput(item.current_price ? item.current_price.toString() : item.buy_price.toString());
+        setExitDateInput(getTodayDateStr());
+    };
+
+    const handleConfirmExit = async (e) => {
+        e.preventDefault();
+        if (!exitModalItem) return;
+        setSubmittingExit(true);
+        try {
+            await exitPortfolioItem(exitModalItem.id, {
+                exit_price: Number(exitPriceInput),
+                sell_date: exitDateInput || getTodayDateStr()
+            });
+            setMessage(`${exitModalItem.symbol} position exited and realized P&L locked.`);
+            setExitModalItem(null);
+            await loadPortfolio();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Unable to exit position.');
+        } finally {
+            setSubmittingExit(false);
+        }
+    };
+
+    const handleOpenEditModal = (item) => {
+        setEditModalItem(item);
+        setEditForm({
+            quantity: item.quantity,
+            buy_price: item.buy_price,
+            buy_date: item.buy_date || getTodayDateStr(),
+            sell_date: item.sell_date || '',
+            exit_price: item.exit_price || ''
+        });
+    };
+
+    const handleSaveEdit = async (e) => {
+        e.preventDefault();
+        if (!editModalItem) return;
+        setSubmittingEdit(true);
+        try {
+            const payload = {
+                quantity: Number(editForm.quantity),
+                buy_price: Number(editForm.buy_price),
+                buy_date: editForm.buy_date || null
+            };
+            if (editModalItem.status === 'exited') {
+                payload.sell_date = editForm.sell_date || null;
+                if (editForm.exit_price) {
+                    payload.exit_price = Number(editForm.exit_price);
+                }
+            }
+            await updatePortfolioItem(editModalItem.id, payload);
+            setMessage('Position updated successfully.');
+            setEditModalItem(null);
+            await loadPortfolio();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Unable to update position.');
+        } finally {
+            setSubmittingEdit(false);
+        }
+    };
+
     const formatCurrency = (val) => {
         const n = Number(val || 0);
-        return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     };
 
     return (
         <div className="app-shell">
             <Navbar />
+
+            {/* Ambient Background Glows */}
+            <div className="ambient-glow-top-right"></div>
+            <div className="ambient-glow-mid-left"></div>
+
             <div className="portfolio-page">
 
-                <section className="hero-card portfolio-hero-card">
+                {/* 1. ORIGINAL HERO CARD ON TOP WITH SLEEK ADD POSITION BUTTON */}
+                <section className="hero-card portfolio-hero-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="hero-copy">
                         <p className="eyebrow">PORTFOLIO MANAGEMENT • LIVE POSITIONS</p>
                         <h1>Your Holdings Desk</h1>
                         <p>Track real-time market value, capital allocation, active P&L, realized performance, and absolute P&L.</p>
                     </div>
+                    <button
+                        type="button"
+                        className="btn-add-position-primary"
+                        onClick={() => {
+                            setShowAddModal(true);
+                            setTimeout(() => symbolInputRef.current?.focus(), 100);
+                        }}
+                    >
+                        Add Position
+                    </button>
                 </section>
 
                 {message && <div className="status success" style={{ marginBottom: '16px' }}>{message}</div>}
                 {error && <div className="status error" style={{ marginBottom: '16px' }}>{error}</div>}
 
+                {/* 2. ORIGINAL 5 STATS CARDS GRID ON TOP */}
                 <section className="portfolio-stats-grid">
                     <div className="portfolio-stat-card">
                         <span className="stat-card-label">Invested Capital</span>
@@ -299,90 +368,92 @@ function Portfolio() {
                     </div>
                 </section>
 
-                <div className="portfolio-layout-grid">
+                {/* 4. EXACT REQUESTED ENTRIES SECTION (AS PER SCREENSHOT) */}
+                {/* Active / Exited Position Tabs */}
+                <div className="portfolio-tabs-container">
+                    <button
+                        type="button"
+                        className={`portfolio-tab-link ${activeHoldingsTab === 'active' ? 'active' : ''}`}
+                        onClick={() => setActiveHoldingsTab('active')}
+                    >
+                        Active Positions
+                    </button>
+                    <button
+                        type="button"
+                        className={`portfolio-tab-link ${activeHoldingsTab === 'exited' ? 'active' : ''}`}
+                        onClick={() => setActiveHoldingsTab('exited')}
+                    >
+                        Exited Positions
+                    </button>
+                </div>
 
-                    <div>
-                        <div className="portfolio-holdings-card">
-                            <div className="holdings-head-toolbar">
-                                <div>
-                                    <span className="fintech-eyebrow">PORTFOLIO POSITIONS</span>
-                                    <h2 style={{ margin: '2px 0 8px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                        Holdings Book
-                                    </h2>
+                {/* Portfolio Holdings Table Card */}
+                <div className="portfolio-table-card">
+                    <div className="portfolio-table-header-row">
+                        <h2 className="portfolio-table-title">Portfolio Holdings</h2>
+                        <div className="portfolio-table-search">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder="Filter stocks..."
+                                value={filterQuery}
+                                onChange={(e) => setFilterQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
 
-                                    <div className="holdings-tabs-bar">
-                                        <button
-                                            type="button"
-                                            className={`holding-tab-btn ${activeHoldingsTab === 'active' ? 'active' : ''}`}
-                                            onClick={() => setActiveHoldingsTab('active')}
-                                        >
-                                            Active Holdings ({activePositions.length})
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className={`holding-tab-btn ${activeHoldingsTab === 'exited' ? 'active' : ''}`}
-                                            onClick={() => setActiveHoldingsTab('exited')}
-                                        >
-                                            Past Exited Holdings ({exitedPositions.length})
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="holding-search-box">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <circle cx="11" cy="11" r="8"></circle>
-                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                    </svg>
-                                    <input
-                                        type="text"
-                                        placeholder="Filter holdings..."
-                                        value={filterQuery}
-                                        onChange={(e) => setFilterQuery(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-
-                            {loading ? (
-                                <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                    Loading your portfolio positions…
-                                </div>
-                            ) : portfolio.length === 0 ? (
-                                <div className="empty-state-fintech">
-                                    <div className="empty-icon-circle">💼</div>
-                                    <h3>No Positions Yet</h3>
-                                    <p>
-                                        Your portfolio is currently empty. Add your first stock position using the Quick Position Entry form to track real-time P&L and technical analytics.
-                                    </p>
-                                    <button
-                                        type="button"
-                                        className="primary-button"
-                                        onClick={() => symbolInputRef.current?.focus()}
-                                        style={{ padding: '10px 22px', fontSize: '0.85rem', fontWeight: 800, borderRadius: '8px' }}
-                                    >
-                                        + Add First Position
-                                    </button>
-                                </div>
-                            ) : displayedPositions.length === 0 ? (
-                                <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                    {activeHoldingsTab === 'active'
-                                        ? (filterQuery ? `No active holdings match "${filterQuery}".` : 'No active holdings currently open.')
-                                        : (filterQuery ? `No exited holdings match "${filterQuery}".` : 'No past exited holdings recorded yet. Clicking "Exit Position" on an active position moves it here with locked realized P&L.')}
-                                </div>
-                            ) : (
-                                <div className="holdings-list-shell">
+                    {loading ? (
+                        <div className="portfolio-empty-state">
+                            <p style={{ color: 'var(--text-muted)' }}>Loading live portfolio holdings...</p>
+                        </div>
+                    ) : portfolio.length === 0 ? (
+                        <div className="portfolio-empty-state">
+                            <div className="empty-icon-bubble">💼</div>
+                            <h3>No Positions Yet</h3>
+                            <p>Your portfolio is currently empty. Use the Quick Position Entry above to add your first stock.</p>
+                        </div>
+                    ) : displayedPositions.length === 0 ? (
+                        <div className="portfolio-empty-state" style={{ padding: '36px 20px' }}>
+                            <p style={{ color: 'var(--text-muted)' }}>
+                                {activeHoldingsTab === 'active'
+                                    ? (filterQuery ? `No active stocks match "${filterQuery}".` : 'No active holdings currently open.')
+                                    : (filterQuery ? `No exited stocks match "${filterQuery}".` : 'No past exited holdings recorded yet.')}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="portfolio-table-wrapper">
+                            <table className="portfolio-holdings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Stock</th>
+                                        <th>Qty</th>
+                                        <th>Buy Price</th>
+                                        <th>Current Price</th>
+                                        <th>Total Value</th>
+                                        <th>Gross P&L</th>
+                                        <th>Brokerage</th>
+                                        <th>Net P&L</th>
+                                        <th>Daily%</th>
+                                        <th style={{ textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                     {displayedPositions.map((item) => {
                                         const isExited = item.status === 'exited';
-                                        const isEditingThisItem = editingItemId === item.id;
                                         const invested = (item.buy_price || 0) * item.quantity;
-                                        const currentValue = isExited
-                                            ? (item.exit_price || item.buy_price || 0) * item.quantity
-                                            : (item.current_price || 0) * item.quantity;
+                                        const currentPrice = isExited 
+                                            ? (item.exit_price || item.current_price || item.buy_price) 
+                                            : (item.current_price || item.buy_price);
+                                        const totalVal = currentPrice * item.quantity;
 
                                         const grossPnl = item.gross_pnl != null
                                             ? Number(item.gross_pnl)
-                                            : (currentValue - invested);
+                                            : (totalVal - invested);
 
-                                        const itemBrk = calcItemBrokerage(item.buy_price, isExited ? item.exit_price : item.current_price, item.quantity);
+                                        const itemBrk = calcItemBrokerage(item.buy_price, currentPrice, item.quantity);
                                         const brokerage = item.brokerage_cost != null
                                             ? Number(item.brokerage_cost)
                                             : itemBrk.total;
@@ -391,278 +462,143 @@ function Portfolio() {
                                             ? Number(item.net_pnl)
                                             : (grossPnl - brokerage);
 
-                                        const netPnlPercent = invested ? (netPnl / invested) * 100 : 0;
-                                        const isExpanded = expandedItemId === item.id;
+                                        const dailyPct = item.daily_change_percent != null
+                                            ? Number(item.daily_change_percent)
+                                            : 0;
 
                                         return (
-                                            <div key={item.id} className={`holding-card-item ${isExited ? 'exited-holding-item' : ''}`}>
-                                                <div
-                                                    className="holding-summary-head"
-                                                    onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                                                    title="Click to view details & actions"
-                                                >
-                                                    <div className="holding-left-col">
-                                                        <div className="holding-sym-row">
-                                                            <span className="holding-sym-title">{item.symbol}</span>
-                                                            <span className="typeahead-badge nse">{item.exchange || 'NSE'}</span>
-                                                            {isExited ? (
-                                                                <span className="exited-status-pill">EXITED</span>
-                                                            ) : (
-                                                                <span className="active-status-pill">ACTIVE</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="holding-qty-sub">
-                                                            Qty: <strong>{item.quantity}</strong> · Avg: <strong>{formatCurrency(item.buy_price)}</strong> · Invested: <strong>{formatCurrency(invested)}</strong>
-                                                            {item.buy_date && (
-                                                                <span> · Bought: <strong>{formatDateDisplay(item.buy_date)}</strong></span>
-                                                            )}
-                                                            {isExited && item.sell_date && (
-                                                                <span> · Exit Date: <strong>{formatDateDisplay(item.sell_date)}</strong></span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="holding-right-col">
-                                                        <div className="holding-pnl-block">
-                                                            <span className={`holding-pnl-num ${netPnl >= 0 ? 'up' : 'down'}`}>
-                                                                {netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}
-                                                            </span>
-                                                            <span className="holding-ltp-sub">
-                                                                {isExited ? `Exit: ${formatCurrency(item.exit_price || item.current_price)}` : `LTP: ${formatCurrency(item.current_price)}`}
-                                                            </span>
-                                                        </div>
-                                                        <div className={`mover-pct-badge ${netPnl >= 0 ? 'positive' : 'negative'}`}>
-                                                            {netPnlPercent >= 0 ? '+' : ''}{netPnlPercent.toFixed(2)}%
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {isExpanded && (
-                                                    <div className="holding-expanded-actions">
-                                                        {isEditingThisItem ? (
-                                                            <div className="inline-edit-panel" style={{ width: '100%', padding: '10px 0' }}>
-                                                                <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--primary-blue)', marginBottom: '10px' }}>
-                                                                    Edit Position — {item.symbol}
-                                                                </div>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '12px' }}>
-                                                                    <div>
-                                                                        <label className="fintech-input-label">Quantity</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            min="1"
-                                                                            value={editForm.quantity}
-                                                                            onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                                                                            className="fintech-form-input"
-                                                                            style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="fintech-input-label">Buy Price (₹)</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            step="0.01"
-                                                                            value={editForm.buy_price}
-                                                                            onChange={(e) => setEditForm({ ...editForm, buy_price: e.target.value })}
-                                                                            className="fintech-form-input"
-                                                                            style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="fintech-input-label">Buy Date</label>
-                                                                        <input
-                                                                            type="date"
-                                                                            value={editForm.buy_date}
-                                                                            onChange={(e) => setEditForm({ ...editForm, buy_date: e.target.value })}
-                                                                            className="fintech-form-input"
-                                                                            style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                                                                        />
-                                                                    </div>
-                                                                    {isExited && (
-                                                                        <>
-                                                                            <div>
-                                                                                <label className="fintech-input-label">Exit Price (₹)</label>
-                                                                                <input
-                                                                                    type="number"
-                                                                                    step="0.01"
-                                                                                    value={editForm.exit_price}
-                                                                                    onChange={(e) => setEditForm({ ...editForm, exit_price: e.target.value })}
-                                                                                    className="fintech-form-input"
-                                                                                    style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="fintech-input-label">Sell / Exit Date</label>
-                                                                                <input
-                                                                                    type="date"
-                                                                                    value={editForm.sell_date}
-                                                                                    onChange={(e) => setEditForm({ ...editForm, sell_date: e.target.value })}
-                                                                                    className="fintech-form-input"
-                                                                                    style={{ padding: '6px 10px', fontSize: '0.82rem' }}
-                                                                                />
-                                                                            </div>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn-save-edit"
-                                                                        onClick={() => handleSaveEdit(item.id)}
-                                                                    >
-                                                                        Save Changes
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn-cancel-edit"
-                                                                        onClick={() => setEditingItemId(null)}
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-                                                                </div>
-                                                            </div>
+                                            <tr key={item.id} className="portfolio-row">
+                                                <td className="cell-stock">
+                                                    <Link to={`/analysis?symbol=${item.symbol}`} className="stock-sym-link" title={`Bought on ${formatDateDisplay(item.buy_date)}`}>
+                                                        <span className="stock-sym-text">{item.symbol}</span>
+                                                    </Link>
+                                                </td>
+                                                <td className="cell-qty">{item.quantity} shares</td>
+                                                <td className="cell-price">{formatCurrency(item.buy_price)}</td>
+                                                <td className="cell-price">{formatCurrency(currentPrice)}</td>
+                                                <td className="cell-total">{formatCurrency(totalVal)}</td>
+                                                <td className={`cell-pnl ${grossPnl >= 0 ? 'positive' : 'negative'}`}>
+                                                    {grossPnl >= 0 ? '+' : ''}{formatCurrency(grossPnl)}
+                                                </td>
+                                                <td className="cell-brokerage">{formatCurrency(brokerage)}</td>
+                                                <td className={`cell-pnl ${netPnl >= 0 ? 'positive' : 'negative'}`}>
+                                                    {netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}
+                                                </td>
+                                                <td className={`cell-daily ${isExited ? '' : dailyPct > 0 ? 'positive' : dailyPct < 0 ? 'negative' : ''}`}>
+                                                    {isExited ? '—' : `${dailyPct >= 0 ? '+' : ''}${dailyPct.toFixed(2)}%`}
+                                                </td>
+                                                <td className="cell-actions" style={{ textAlign: 'right' }}>
+                                                    <div className="action-buttons-group">
+                                                        {!isExited ? (
+                                                            <button
+                                                                type="button"
+                                                                className="btn-table-exit"
+                                                                onClick={() => handleOpenExitModal(item)}
+                                                                title="Exit Position and lock in realized P&L"
+                                                            >
+                                                                Exit
+                                                            </button>
                                                         ) : (
-                                                            <>
-                                                                <div className="holding-expanded-left" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                                        {item.display_name || item.name || item.symbol}
-                                                                    </div>
-                                                                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                                                        <span>{isExited ? 'Realized Exit Value' : 'Current Value'}: <strong>{formatCurrency(currentValue)}</strong></span>
-                                                                        <span>Gross P&L: <strong style={{ color: grossPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{grossPnl >= 0 ? '+' : ''}{formatCurrency(grossPnl)}</strong></span>
-                                                                        <span>Buy Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.buyChg)}</strong></span>
-                                                                        <span>Sell Chg (0.15%): <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(itemBrk.sellChg)}</strong></span>
-                                                                        <span>Total Charges: <strong style={{ color: 'var(--crimson-red-text)' }}>-{formatCurrency(brokerage)}</strong></span>
-                                                                        <span>Net P&L: <strong style={{ color: netPnl >= 0 ? 'var(--emerald-green-text)' : 'var(--crimson-red-text)' }}>{netPnl >= 0 ? '+' : ''}{formatCurrency(netPnl)}</strong></span>
-                                                                        <span>Buy Date: <strong>{formatDateDisplay(item.buy_date) || '—'}</strong></span>
-                                                                        {isExited && (
-                                                                            <span>Sell / Exit Date: <strong>{formatDateDisplay(item.sell_date) || '—'}</strong></span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="holding-expanded-btns">
-                                                                    <Link
-                                                                        to={`/analysis?symbol=${item.symbol}`}
-                                                                        className="btn-analyze-holding"
-                                                                    >
-                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                            <line x1="18" y1="20" x2="18" y2="10"></line>
-                                                                            <line x1="12" y1="20" x2="12" y2="4"></line>
-                                                                            <line x1="6" y1="20" x2="6" y2="14"></line>
-                                                                        </svg>
-                                                                        Analyze Stock
-                                                                    </Link>
-
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn-edit-holding"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleStartEdit(item);
-                                                                        }}
-                                                                        title="Edit buy date, buy price, quantity, or sell date"
-                                                                    >
-                                                                        Edit Entry
-                                                                    </button>
-
-                                                                    {!isExited && (
-                                                                        <button
-                                                                            type="button"
-                                                                            className="btn-exit-holding"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleExit(item.id);
-                                                                            }}
-                                                                            title="Exit position and lock in realized P&L"
-                                                                        >
-                                                                            Exit Position
-                                                                        </button>
-                                                                    )}
-
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn-delete-holding"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleDelete(item.id);
-                                                                        }}
-                                                                    >
-                                                                        Delete
-                                                                    </button>
-                                                                </div>
-                                                            </>
+                                                            <span className="exited-badge">Exited</span>
                                                         )}
+                                                        <button
+                                                            type="button"
+                                                            className="btn-table-icon"
+                                                            onClick={() => handleOpenEditModal(item)}
+                                                            title="Edit Entry"
+                                                        >
+                                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-table-icon delete"
+                                                            onClick={() => handleDelete(item.id, item.symbol)}
+                                                            title="Delete Entry"
+                                                        >
+                                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <polyline points="3 6 5 6 21 6"></polyline>
+                                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            </svg>
+                                                        </button>
                                                     </div>
-                                                )}
-                                            </div>
+                                                </td>
+                                            </tr>
                                         );
                                     })}
-                                </div>
-                            )}
+                                </tbody>
+                            </table>
                         </div>
+                    )}
+                </div>
 
-                        {activePositions.length > 0 && totalCurrent > 0 && (
-                            <div className="portfolio-allocation-card" style={{ marginTop: '20px' }}>
-                                <span className="fintech-eyebrow">CAPITAL DIVERSIFICATION</span>
-                                <h3 style={{ margin: '2px 0 12px', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                    Portfolio Allocation Breakdown
-                                </h3>
-
-                                <div className="allocation-segmented-bar">
-                                    {activePositions.map((item, idx) => {
-                                        const val = (item.current_price || 0) * item.quantity;
-                                        const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
-                                        const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                className="alloc-segment"
-                                                style={{ width: `${pct}%`, background: color }}
-                                                title={`${item.symbol}: ${pct.toFixed(1)}% (${formatCurrency(val)})`}
-                                            />
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="alloc-legend-row">
-                                    {activePositions.map((item, idx) => {
-                                        const val = (item.current_price || 0) * item.quantity;
-                                        const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
-                                        const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
-                                        return (
-                                            <div key={item.id} className="alloc-legend-chip">
-                                                <span className="alloc-color-dot" style={{ background: color }} />
-                                                <span><strong>{item.symbol}</strong> ({pct.toFixed(1)}%)</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                {/* 5. CAPITAL DIVERSIFICATION BREAKDOWN (AS PER SCREENSHOT) */}
+                {activePositions.length > 0 && totalCurrent > 0 && (
+                    <div className="portfolio-allocation-box">
+                        <span className="allocation-eyebrow">CAPITAL DIVERSIFICATION</span>
+                        <h3 className="allocation-title">Portfolio Allocation Breakdown</h3>
+                        <div className="allocation-bar-wrapper">
+                            {activePositions.map((item, idx) => {
+                                const val = (item.current_price || 0) * item.quantity;
+                                const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
+                                const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="allocation-bar-segment"
+                                        style={{ width: `${pct}%`, background: color }}
+                                        title={`${item.symbol}: ${pct.toFixed(1)}% (${formatCurrency(val)})`}
+                                    />
+                                );
+                            })}
+                        </div>
+                        <div className="allocation-chips-row">
+                            {activePositions.map((item, idx) => {
+                                const val = (item.current_price || 0) * item.quantity;
+                                const pct = totalCurrent ? (val / totalCurrent) * 100 : 0;
+                                const color = ALLOC_COLORS[idx % ALLOC_COLORS.length];
+                                return (
+                                    <div key={item.id} className="allocation-chip">
+                                        <span className="allocation-dot" style={{ background: color }}></span>
+                                        <span className="allocation-chip-text">
+                                            <strong>{item.symbol}</strong> ({pct.toFixed(1)}%)
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
+                )}
+            </div>
 
-                    <div className="quick-entry-card">
-                        <span className="fintech-eyebrow">ORDER DESK</span>
-                        <h2 style={{ margin: '2px 0 16px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Quick Position Entry
-                        </h2>
-
-                        <div style={{ display: 'grid', gap: '16px' }}>
-                            <div style={{ position: 'relative' }}>
-                                <label className="fintech-input-label">Script Symbol</label>
+            {/* ADD POSITION MODAL */}
+            {showAddModal && (
+                <div className="modal-backdrop-overlay" onClick={() => setShowAddModal(false)}>
+                    <div className="modal-card-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Add Stock Position</h3>
+                            <button type="button" className="modal-close-btn" onClick={() => setShowAddModal(false)}>
+                                &times;
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddSubmit} className="modal-form-body">
+                            <div className="modal-input-group" style={{ position: 'relative' }}>
+                                <label className="modal-label">Stock Symbol / Company</label>
                                 <input
                                     ref={symbolInputRef}
                                     type="text"
-                                    placeholder="Enter Symbol"
+                                    placeholder="Enter Symbol (e.g. RELIANCE, TCS, INFY)"
                                     value={scriptSymbol}
                                     onChange={(e) => setScriptSymbol(e.target.value.toUpperCase())}
                                     onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-                                    className="fintech-form-input"
-                                    style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                                    className="modal-input"
+                                    required
+                                    autoComplete="off"
                                 />
-
                                 {showSuggestions && suggestions.length > 0 && (
-                                    <div className="typeahead-dropdown" style={{ top: '100%', left: 0, right: 0 }}>
+                                    <div className="typeahead-dropdown">
                                         {suggestions.map((item) => (
                                             <div
                                                 key={item.symbol}
@@ -682,77 +618,210 @@ function Portfolio() {
                                 )}
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px' }}>
-                                <div>
-                                    <label className="fintech-input-label">Quantity</label>
+                            <div className="modal-grid-2">
+                                <div className="modal-input-group">
+                                    <label className="modal-label">Quantity</label>
                                     <input
                                         type="number"
                                         min="1"
                                         value={scriptQty}
                                         onChange={(e) => setScriptQty(Number(e.target.value))}
-                                        className="fintech-form-input"
-                                        style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                                        className="modal-input"
+                                        required
                                     />
                                 </div>
-                                <div>
-                                    <label className="fintech-input-label">Buy Price (₹)</label>
+                                <div className="modal-input-group">
+                                    <label className="modal-label">Buy Price (₹)</label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         placeholder="0.00"
                                         value={scriptBuyPrice}
                                         onChange={(e) => setScriptBuyPrice(e.target.value)}
-                                        className="fintech-form-input"
-                                        style={{ fontFamily: 'JetBrains Mono, monospace' }}
+                                        className="modal-input"
+                                        required
                                     />
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="fintech-input-label">Buy Date</label>
+                            <div className="modal-input-group">
+                                <label className="modal-label">Purchase Date</label>
                                 <input
                                     type="date"
                                     value={buyDate}
                                     onChange={(e) => setBuyDate(e.target.value)}
-                                    className="fintech-form-input"
-                                    style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.82rem' }}
+                                    className="modal-input"
                                 />
                             </div>
 
-                            <button
-                                type="button"
-                                className="btn-add-position"
-                                onClick={async () => {
-                                    setMessage('');
-                                    setError('');
-                                    if (!scriptSymbol.trim() || !scriptQty || !scriptBuyPrice) {
-                                        setError('Symbol, quantity and buy price are required.');
-                                        return;
-                                    }
-                                    try {
-                                        await addPortfolioItem({
-                                            symbol: scriptSymbol.trim().toUpperCase(),
-                                            quantity: Number(scriptQty),
-                                            buy_price: Number(scriptBuyPrice),
-                                            buy_date: buyDate || getTodayDateStr(),
-                                        });
-                                        setMessage(`${scriptSymbol.trim().toUpperCase()} successfully added to your holdings.`);
-                                        setScriptSymbol('');
-                                        setScriptQty(1);
-                                        setScriptBuyPrice('');
-                                        await loadPortfolio();
-                                    } catch (err) {
-                                        setError(err.response?.data?.symbol || err.response?.data?.detail || 'Unable to add this script.');
-                                    }
-                                }}
-                            >
-                                + Add Position
+                            <div className="modal-footer-actions">
+                                <button
+                                    type="button"
+                                    className="btn-modal-cancel"
+                                    onClick={() => setShowAddModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn-modal-submit"
+                                >
+                                    Add to Holdings
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* EXIT POSITION MODAL */}
+            {exitModalItem && (
+                <div className="modal-backdrop-overlay" onClick={() => setExitModalItem(null)}>
+                    <div className="modal-card-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Exit Position — {exitModalItem.symbol}</h3>
+                            <button type="button" className="modal-close-btn" onClick={() => setExitModalItem(null)}>
+                                &times;
                             </button>
                         </div>
-                    </div>
+                        <form onSubmit={handleConfirmExit} className="modal-form-body">
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', margin: '0 0 16px' }}>
+                                Closing {exitModalItem.quantity} shares of {exitModalItem.symbol} (Bought @ {formatCurrency(exitModalItem.buy_price)}).
+                            </p>
 
+                            <div className="modal-input-group">
+                                <label className="modal-label">Exit Selling Price (₹)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={exitPriceInput}
+                                    onChange={(e) => setExitPriceInput(e.target.value)}
+                                    className="modal-input"
+                                    required
+                                />
+                            </div>
+
+                            <div className="modal-input-group">
+                                <label className="modal-label">Exit / Sell Date</label>
+                                <input
+                                    type="date"
+                                    value={exitDateInput}
+                                    onChange={(e) => setExitDateInput(e.target.value)}
+                                    className="modal-input"
+                                />
+                            </div>
+
+                            <div className="modal-footer-actions">
+                                <button
+                                    type="button"
+                                    className="btn-modal-cancel"
+                                    onClick={() => setExitModalItem(null)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn-modal-submit danger"
+                                    disabled={submittingExit}
+                                >
+                                    {submittingExit ? 'Processing...' : 'Confirm Exit'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* EDIT POSITION MODAL */}
+            {editModalItem && (
+                <div className="modal-backdrop-overlay" onClick={() => setEditModalItem(null)}>
+                    <div className="modal-card-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Edit Entry — {editModalItem.symbol}</h3>
+                            <button type="button" className="modal-close-btn" onClick={() => setEditModalItem(null)}>
+                                &times;
+                            </button>
+                        </div>
+                        <form onSubmit={handleSaveEdit} className="modal-form-body">
+                            <div className="modal-grid-2">
+                                <div className="modal-input-group">
+                                    <label className="modal-label">Quantity</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={editForm.quantity}
+                                        onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                                        className="modal-input"
+                                        required
+                                    />
+                                </div>
+                                <div className="modal-input-group">
+                                    <label className="modal-label">Buy Price (₹)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={editForm.buy_price}
+                                        onChange={(e) => setEditForm({ ...editForm, buy_price: e.target.value })}
+                                        className="modal-input"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="modal-input-group">
+                                <label className="modal-label">Purchase Date</label>
+                                <input
+                                    type="date"
+                                    value={editForm.buy_date}
+                                    onChange={(e) => setEditForm({ ...editForm, buy_date: e.target.value })}
+                                    className="modal-input"
+                                />
+                            </div>
+
+                            {editModalItem.status === 'exited' && (
+                                <div className="modal-grid-2">
+                                    <div className="modal-input-group">
+                                        <label className="modal-label">Exit Price (₹)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editForm.exit_price}
+                                            onChange={(e) => setEditForm({ ...editForm, exit_price: e.target.value })}
+                                            className="modal-input"
+                                        />
+                                    </div>
+                                    <div className="modal-input-group">
+                                        <label className="modal-label">Sell Date</label>
+                                        <input
+                                            type="date"
+                                            value={editForm.sell_date}
+                                            onChange={(e) => setEditForm({ ...editForm, sell_date: e.target.value })}
+                                            className="modal-input"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="modal-footer-actions">
+                                <button
+                                    type="button"
+                                    className="btn-modal-cancel"
+                                    onClick={() => setEditModalItem(null)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn-modal-submit"
+                                    disabled={submittingEdit}
+                                >
+                                    {submittingEdit ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

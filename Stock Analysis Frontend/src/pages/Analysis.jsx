@@ -1202,7 +1202,7 @@ function Analysis() {
                                                     <div className="forecast-disclaimer-box">
                                                         <div className="disclaimer-title">ℹ️ Model Assumptions</div>
                                                         <p>
-                                                            This projection uses OLS linear regression on 30-day sequential price data. It assumes trend continuation and does not account for news shocks or gap risk.
+                                                            This projection uses OLS linear regression on 1-year (~252 trading days) sequential price data. It assumes trend continuation and does not account for news shocks or gap risk.
                                                         </p>
                                                     </div>
                                                 </div>

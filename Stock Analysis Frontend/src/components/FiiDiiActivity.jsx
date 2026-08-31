@@ -100,7 +100,7 @@ function FiiDiiActivity() {
                     <span className="fintech-eyebrow">INSTITUTIONAL LIQUIDITY</span>
                     <h2 className="card-title">FII & DII Inflow / Outflow Analytics</h2>
                     <p className="fii-dii-subtitle">
-                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities (₹ Crores).
+                        Daily net buying and selling turnover of Foreign & Domestic Institutional Investors in Indian Equities.
                     </p>
                 </div>
                 <div className="fii-dii-toolbar">

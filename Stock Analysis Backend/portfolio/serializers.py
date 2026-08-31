@@ -157,12 +157,18 @@ class PortfolioSerializer(serializers.ModelSerializer):
         if instance.status == 'exited':
             return 0.0
         from stocks.models import StockHistory
-        history = StockHistory.objects.filter(stock=instance.stock).order_by('-date')[:1]
-        if history.exists():
-            prev_close = history[0].close_price
-            if prev_close > 0:
-                current = instance.stock.current_price or prev_close
+        history = list(StockHistory.objects.filter(stock=instance.stock).order_by('-date')[:2])
+        if len(history) >= 2:
+            prev_close = history[1].close_price
+            current = instance.stock.current_price or history[0].close_price
+            if prev_close and prev_close > 0:
                 change = ((current - prev_close) / prev_close) * 100
+                return round(change, 2)
+        elif len(history) == 1:
+            base_price = history[0].open_price if (history[0].open_price and history[0].open_price > 0) else history[0].close_price
+            current = instance.stock.current_price or history[0].close_price
+            if base_price and base_price > 0 and current != base_price:
+                change = ((current - base_price) / base_price) * 100
                 return round(change, 2)
         return 0.0
 
