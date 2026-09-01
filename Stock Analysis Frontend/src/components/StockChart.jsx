@@ -36,7 +36,7 @@ function StockChart({
 
     const currencyPrefix = isIndex ? '' : '₹';
 
-    const [selectedRange, setSelectedRange] = useState(propRange || '1M');
+    const [selectedRange, setSelectedRange] = useState(propRange || '1Y');
     useEffect(() => {
         if (propRange) setSelectedRange(propRange);
     }, [propRange]);
